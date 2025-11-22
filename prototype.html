@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Songbook Prototype</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: #fafafa;
+  }
+
+  /* Layout */
+  .app {
+    display: flex;
+    height: 100vh;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    width: 240px;
+    background: #f2f2f2;
+    border-right: 1px solid #ddd;
+    padding: 20px;
+  }
+  .sidebar h2 {
+    margin-top: 0;
+    font-size: 20px;
+    margin-bottom: 20px;
+  }
+  .nav-item {
+    padding: 10px 0;
+    cursor: pointer;
+    font-size: 16px;
+  }
+  .nav-item:hover {
+    color: #007aff;
+  }
+  .active {
+    font-weight: bold;
+    color: #007aff;
+  }
+
+  /* Main Content */
+  .content {
+    flex: 1;
+    padding: 24px;
+    overflow-y: auto;
+  }
+
+  h1 {
+    margin-top: 0;
+  }
+
+  /* Wireframe Cards */
+  .card {
+    background: white;
+    border: 1px solid #ddd;
+    padding: 16px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+  }
+
+  .tag {
+    display: inline-block;
+    background: #eee;
+    padding: 4px 8px;
+    margin-right: 6px;
+    border-radius: 4px;
+    font-size: 12px;
+  }
+
+  .button {
+    padding: 10px 16px;
+    background: #e0e0e0;
+    border-radius: 6px;
+    display: inline-block;
+    margin-top: 12px;
+    cursor: pointer;
+  }
+  .button:hover {
+    background: #d0d0d0;
+  }
+
+  .input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ccc;
+    margin-bottom: 12px;
+    border-radius: 6px;
+  }
+
+  .flex {
+    display: flex;
+    gap: 16px;
+  }
+
+  pre {
+    background: #f4f4f4;
+    padding: 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    white-space: pre-wrap;
+  }
+
+</style>
+
+<script>
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.style.display = 'none');
+  document.getElementById(id).style.display = 'block';
+
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById("nav-" + id).classList.add('active');
+}
+</script>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <h2>Songbook</h2>
+    <div id="nav-library" class="nav-item active" onclick="showScreen('library')">Library</div>
+    <div id="nav-add" class="nav-item" onclick="showScreen('add')">Add Song</div>
+    <div id="nav-tagging" class="nav-item" onclick="showScreen('tagging')">Tagging</div>
+    <div id="nav-viewer" class="nav-item" onclick="showScreen('viewer')">Song Viewer</div>
+    <div id="nav-search" class="nav-item" onclick="showScreen('search')">Search</div>
+    <div id="nav-settings" class="nav-item" onclick="showScreen('settings')">Settings</div>
+  </div>
+
+  <!-- MAIN CONTENT -->
+  <div class="content">
+
+    <!-- LIBRARY -->
+    <div class="screen" id="library" style="display:block">
+      <h1>Library</h1>
+      <input class="input" placeholder="Search songs..." />
+
+      <div class="card" onclick="showScreen('viewer')">
+        <h3>Oceans</h3>
+        <p>Hillsong United</p>
+        <span class="tag">Key: D</span>
+        <span class="tag">Worship</span>
+      </div>
+
+      <div class="card" onclick="showScreen('viewer')">
+        <h3>Hallelujah</h3>
+        <p>Leonard Cohen</p>
+        <span class="tag">Key: C</span>
+        <span class="tag">Folk</span>
+      </div>
+
+      <div class="button" onclick="showScreen('add')">+ Add Song</div>
+    </div>
+
+    <!-- ADD SONG -->
+    <div class="screen" id="add" style="display:none">
+      <h1>Add Song</h1>
+
+      <div class="card">Upload File (JPG, PDF, DOC)</div>
+      <div class="card">Paste Lyrics/Chords</div>
+      <div class="card">Type Manually</div>
+
+      <div class="button" onclick="showScreen('tagging')">
+        Continue →
+      </div>
+    </div>
+
+    <!-- TAGGING -->
+    <div class="screen" id="tagging" style="display:none">
+      <h1>Tagging</h1>
+
+      <input class="input" placeholder="Song Title" />
+      <input class="input" placeholder="Artist" />
+      <input class="input" placeholder="Key (e.g., D, G, A)" />
+      <input class="input" placeholder="Tags (comma separated)" />
+
+      <div class="button" onclick="showScreen('library')">Save Song</div>
+    </div>
+
+    <!-- SONG VIEWER -->
+    <div class="screen" id="viewer" style="display:none">
+      <h1>Oceans</h1>
+      <p>Hillsong United</p>
+
+      <div class="flex">
+        <div class="button">Transpose -</div>
+        <div class="button">Transpose +</div>
+        <div class="button">Font +</div>
+        <div class="button">Font -</div>
+      </div>
+
+      <pre>
+D   A   Bm   G
+
+You call me out upon the waters
+The great unknown where feet may fail
+      </pre>
+
+      <div class="button" onclick="showScreen('library')">Back to Library</div>
+    </div>
+
+    <!-- SEARCH -->
+    <div class="screen" id="search" style="display:none">
+      <h1>Search</h1>
+      <input class="input" placeholder="Search..." />
+
+      <h3>Filters</h3>
+      <input class="input" placeholder="Key" />
+      <input class="input" placeholder="Artist" />
+      <input class="input" placeholder="Tags" />
+
+      <div class="button">Apply Filters</div>
+
+      <h3>Results</h3>
+      <div class="card">Result 1</div>
+      <div class="card">Result 2</div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div class="screen" id="settings" style="display:none">
+      <h1>Settings</h1>
+
+      <div class="card">Theme: Light / Dark</div>
+      <div class="card">Backup Database</div>
+      <div class="card">Export Songs</div>
+      <div class="card">Import Songs</div>
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>

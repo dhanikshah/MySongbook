@@ -1,0 +1,51 @@
+{
+  "name": "my-songbook",
+  "version": "1.0.0",
+  "description": "Cross-platform lyrics/chords app with OCR and transposition",
+  "main": "index.js",
+  "scripts": {
+    "dev": "ulimit -n 4096 && expo start",
+    "dev:clear": "ulimit -n 4096 && expo start --clear",
+    "web": "ulimit -n 4096 && expo start --web",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "android:device": "ulimit -n 4096 && EXPO_PUBLIC_API_URL=http://$(node get-local-ip.js):3001 expo start --android",
+    "backend": "cd backend && npm run dev",
+    "build:android": "eas build --platform android",
+    "build:apk": "export JAVA_HOME=\"/Applications/Android Studio.app/Contents/jbr/Contents/Home\" && npx expo prebuild --platform android && cd android && ./gradlew assembleRelease",
+    "build:apk:eas": "eas build --platform android --profile preview",
+    "test:save": "node test-save-song.js",
+    "test:delete": "node test-delete-song.js",
+    "postinstall": "patch-package"
+  },
+  "dependencies": {
+    "@react-navigation/native": "^6.1.0",
+    "@react-navigation/native-stack": "^6.9.0",
+    "axios": "^1.6.0",
+    "expo": "~51.0.0",
+    "expo-document-picker": "~12.0.0",
+    "expo-file-system": "~17.0.0",
+    "expo-font": "~12.0.0",
+    "expo-image-picker": "~15.1.0",
+    "expo-router": "~3.5.0",
+    "expo-status-bar": "~1.12.0",
+    "nativewind": "^4.0.0",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "react-native": "0.74.5",
+    "react-native-gesture-handler": "~2.16.0",
+    "react-native-reanimated": "~3.10.0",
+    "react-native-safe-area-context": "4.10.5",
+    "react-native-screens": "~3.31.0",
+    "react-native-web": "~0.19.0",
+    "tailwindcss": "^3.4.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.24.0",
+    "@types/react": "~18.2.79",
+    "patch-package": "^8.0.1",
+    "postinstall-postinstall": "^2.1.0",
+    "typescript": "~5.3.3"
+  },
+  "private": true
+}
