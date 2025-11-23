@@ -6,14 +6,7 @@ import { useTheme } from '../../app/context/ThemeContext';
 import { songApi } from '../../app/services/api';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
-
-// Conditionally import Sharing (may not be installed)
-let Sharing: any = null;
-try {
-  Sharing = require('expo-sharing');
-} catch (e) {
-  console.log('expo-sharing not available');
-}
+import * as Sharing from 'expo-sharing';
 
 interface BackupFile {
   name: string;
@@ -124,19 +117,40 @@ export function SettingsPage() {
         
         await FileSystem.writeAsStringAsync(fileUri, jsonString);
         
+        // Verify file was created
+        const fileInfo = await FileSystem.getInfoAsync(fileUri);
+        if (!fileInfo.exists) {
+          throw new Error('Failed to create backup file');
+        }
+        
+        console.log('Backup file created:', fileUri, 'Size:', fileInfo.size);
+        
         // Refresh backup files list after export
         await loadBackupFiles();
         
         // Use Sharing API to let user save/share the file (can save to Downloads)
-        if (Sharing && await Sharing.isAvailableAsync()) {
-          await Sharing.shareAsync(fileUri, {
-            mimeType: 'application/json',
-            dialogTitle: 'Save Backup File',
-            UTI: 'public.json',
-          });
-        } else {
+        try {
+          const isSharingAvailable = await Sharing.isAvailableAsync();
+          console.log('Sharing available:', isSharingAvailable);
+          
+          if (isSharingAvailable) {
+            console.log('Opening share dialog for file:', fileUri);
+            // Share the file - this will open Android's share dialog
+            await Sharing.shareAsync(fileUri, {
+              mimeType: 'application/json',
+              dialogTitle: 'Save Backup File',
+              UTI: 'public.json',
+            });
+            console.log('Share dialog completed');
+          } else {
+            console.warn('Sharing not available, showing alert instead');
+            throw new Error('Sharing not available');
+          }
+        } catch (sharingError: any) {
+          console.error('Sharing error:', sharingError);
+          // Fallback to alert if sharing fails
           const message = Platform.OS === 'android'
-            ? `Exported ${songs.length} song${songs.length !== 1 ? 's' : ''} successfully!\n\nFile saved to:\n${fileUri}\n\nADB access:\nadb shell run-as com.mysongbook.app cat ${fileUri.replace(FileSystem.cacheDirectory || '', '/data/data/com.mysongbook.app/cache/')}\n\nOr use Sharing to save to Downloads folder.`
+            ? `Exported ${songs.length} song${songs.length !== 1 ? 's' : ''} successfully!\n\nFile saved to:\n${fileUri}\n\nTo access via ADB:\nadb backup -noapk com.mysongbook.app\n\nOr use the Share button in the backup files list below.`
             : `Exported ${songs.length} song${songs.length !== 1 ? 's' : ''} successfully!\n\nFile saved to:\n${fileUri}\n\nYou can use this file to backup or restore your library.`;
           Alert.alert('Export Complete', message);
         }
@@ -232,6 +246,25 @@ export function SettingsPage() {
     if (!timestamp) return 'Unknown date';
     const date = new Date(timestamp);
     return date.toLocaleString();
+  };
+
+  // Share backup file
+  const handleShareBackup = async (file: BackupFile) => {
+    try {
+      const isSharingAvailable = await Sharing.isAvailableAsync();
+      if (isSharingAvailable) {
+        await Sharing.shareAsync(file.uri, {
+          mimeType: 'application/json',
+          dialogTitle: 'Share Backup File',
+          UTI: 'public.json',
+        });
+      } else {
+        Alert.alert('Sharing Not Available', 'Sharing is not available on this device.');
+      }
+    } catch (error: any) {
+      console.error('Error sharing backup file:', error);
+      Alert.alert('Error', `Failed to share file: ${error?.message || 'Unknown error'}`);
+    }
   };
 
   // Delete backup file
@@ -469,19 +502,34 @@ export function SettingsPage() {
                       {file.uri}
                     </Text>
                   </View>
-                  <TouchableOpacity
-                    style={[
-                      styles.deleteBackupButton,
-                      { backgroundColor: theme.error, borderColor: theme.error },
-                      deletingFile === file.name && styles.buttonDisabled
-                    ]}
-                    onPress={() => handleDeleteBackup(file)}
-                    disabled={deletingFile === file.name}
-                  >
-                    <Text style={[styles.deleteBackupButtonText, { color: theme.errorText }]}>
-                      {deletingFile === file.name ? 'Deleting...' : 'Delete'}
-                    </Text>
-                  </TouchableOpacity>
+                  <View style={styles.backupFileActions}>
+                    {Platform.OS !== 'web' && (
+                      <TouchableOpacity
+                        style={[
+                          styles.shareBackupButton,
+                          { backgroundColor: theme.primary, borderColor: theme.primary }
+                        ]}
+                        onPress={() => handleShareBackup(file)}
+                      >
+                        <Text style={[styles.shareBackupButtonText, { color: theme.primaryText }]}>
+                          Share
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                    <TouchableOpacity
+                      style={[
+                        styles.deleteBackupButton,
+                        { backgroundColor: theme.error, borderColor: theme.error },
+                        deletingFile === file.name && styles.buttonDisabled
+                      ]}
+                      onPress={() => handleDeleteBackup(file)}
+                      disabled={deletingFile === file.name}
+                    >
+                      <Text style={[styles.deleteBackupButtonText, { color: theme.errorText }]}>
+                        {deletingFile === file.name ? 'Deleting...' : 'Delete'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               ))}
             </View>
@@ -588,6 +636,23 @@ const styles = StyleSheet.create({
   backupFileInfo: {
     flex: 1,
     marginRight: 12,
+  },
+  backupFileActions: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+  },
+  shareBackupButton: {
+    padding: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    borderWidth: 1,
+    minWidth: 70,
+    alignItems: 'center',
+  },
+  shareBackupButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   backupFileName: {
     fontSize: 14,
