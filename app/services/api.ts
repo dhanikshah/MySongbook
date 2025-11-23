@@ -8,8 +8,21 @@ import { autoDetectApiUrl, getLocalIPFromExpo } from '../utils/autoDetectApiUrl'
 
 // Get API URL - handle web vs mobile automatically
 const getApiBaseUrl = () => {
-  // CRITICAL: Check for Android physical device FIRST, before environment variable
-  // This ensures physical devices always use the configured IP
+  // PRIORITY 1: If environment variable is set (Railway URL for production), use it
+  // This takes precedence over local development settings
+  if (process.env.EXPO_PUBLIC_API_URL) {
+    const envUrl = process.env.EXPO_PUBLIC_API_URL;
+    // If it's a production URL (Railway, HTTPS), use it for all platforms
+    if (envUrl.startsWith('https://')) {
+      console.log('✅ Using production API URL from environment:', envUrl);
+      return envUrl;
+    }
+    // For local development URLs, continue with platform detection
+    console.log('Using API URL from environment:', envUrl);
+    return envUrl;
+  }
+
+  // PRIORITY 2: Platform-specific detection for local development
   // Note: In React Native, window might be defined, so we check Platform directly
   try {
     console.log('🔍 Checking platform...');
@@ -30,7 +43,7 @@ const getApiBaseUrl = () => {
       console.log('🔍 isEmulator:', isEmulator);
       
       if (!isEmulator) {
-        // This is a physical Android device - ALWAYS use configured IP (ignore env var)
+        // This is a physical Android device - use configured IP for local dev
         console.log('✅ Android physical device detected, using configured IP: 192.168.5.24:3001');
         return 'http://192.168.5.24:3001';
       } else {
@@ -45,12 +58,6 @@ const getApiBaseUrl = () => {
     }
   } catch (e) {
     console.warn('⚠️ Could not detect platform:', e);
-  }
-
-  // If explicitly set via environment variable, use it (for web/emulator)
-  if (process.env.EXPO_PUBLIC_API_URL) {
-    console.log('Using API URL from environment:', process.env.EXPO_PUBLIC_API_URL);
-    return process.env.EXPO_PUBLIC_API_URL;
   }
 
   // Auto-detect platform and use appropriate URL
