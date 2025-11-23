@@ -915,18 +915,6 @@ const styles = StyleSheet.create({
     // Color applied via inline styles using theme.primary
     fontWeight: '600',
   },
-  backButton: {
-    padding: 10,
-    paddingHorizontal: 16,
-    backgroundColor: '#e0e0e0',
-    borderRadius: 6,
-    marginTop: 12,
-    alignSelf: 'flex-start',
-  },
-  backButtonText: {
-    fontSize: 14,
-    color: '#000',
-  },
   actionButtonsContainer: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
