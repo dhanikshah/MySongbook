@@ -95,28 +95,47 @@ router.get('/:id', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Song not found' });
     }
 
-        // Parse JSON tags and artists
-        let parsedArtists: string[] = [];
-        if (typeof song.artist === 'string') {
-          try {
-            parsedArtists = JSON.parse(song.artist);
-            if (!Array.isArray(parsedArtists)) {
-              const artistStr = typeof song.artist === 'string' ? song.artist : String(song.artist);
-              parsedArtists = artistStr.trim() ? [artistStr] : [];
-            }
-          } catch {
-            const artistStr = typeof song.artist === 'string' ? song.artist : String(song.artist);
-            parsedArtists = artistStr.trim() ? [artistStr] : [];
-          }
-        } else if (Array.isArray(song.artist)) {
-          parsedArtists = song.artist;
-        }
+    // Log the raw song data for debugging
+    console.log('Backend: Fetching song by ID:', req.params.id);
+    console.log('Backend: Song data from DB:', {
+      id: song.id,
+      title: song.title,
+      extractedTextLength: song.extractedText ? song.extractedText.length : 0,
+      extractedTextPreview: song.extractedText ? song.extractedText.substring(0, 100) : '(empty)',
+      extractedTextIsNull: song.extractedText === null,
+      extractedTextIsUndefined: song.extractedText === undefined,
+    });
 
-        res.json({
-          ...song,
-          tags: JSON.parse(song.tags as any),
-          artist: parsedArtists,
-        });
+    // Ensure extractedText is always a string (never null/undefined)
+    const extractedText = song.extractedText || '';
+
+    // Parse JSON tags and artists
+    let parsedArtists: string[] = [];
+    if (typeof song.artist === 'string') {
+      try {
+        parsedArtists = JSON.parse(song.artist);
+        if (!Array.isArray(parsedArtists)) {
+          const artistStr = typeof song.artist === 'string' ? song.artist : String(song.artist);
+          parsedArtists = artistStr.trim() ? [artistStr] : [];
+        }
+      } catch {
+        const artistStr = typeof song.artist === 'string' ? song.artist : String(song.artist);
+        parsedArtists = artistStr.trim() ? [artistStr] : [];
+      }
+    } else if (Array.isArray(song.artist)) {
+      parsedArtists = song.artist;
+    }
+
+    const responseSong = {
+      ...song,
+      extractedText: extractedText, // Ensure it's always a string
+      tags: JSON.parse(song.tags as any),
+      artist: parsedArtists,
+    };
+
+    console.log('Backend: Returning song with extractedText length:', responseSong.extractedText.length);
+
+    res.json(responseSong);
   } catch (error) {
     console.error('Error fetching song:', error);
     res.status(500).json({ error: 'Failed to fetch song' });

@@ -78,6 +78,24 @@ export function SongViewerPage() {
       setLoading(true);
       setError(null);
       const loadedSong = await songApi.getById(songId);
+      
+      // Log the loaded song data for debugging
+      console.log('SongViewerPage: Loaded song:', {
+        id: loadedSong.id,
+        title: loadedSong.title,
+        extractedTextLength: loadedSong.extractedText ? loadedSong.extractedText.length : 0,
+        extractedTextPreview: loadedSong.extractedText ? loadedSong.extractedText.substring(0, 100) : '(empty)',
+        extractedTextIsNull: loadedSong.extractedText === null,
+        extractedTextIsUndefined: loadedSong.extractedText === undefined,
+        extractedTextType: typeof loadedSong.extractedText,
+      });
+      
+      // Ensure extractedText is always a string
+      if (!loadedSong.extractedText) {
+        console.warn('SongViewerPage: Song has no extractedText!', loadedSong.id);
+        loadedSong.extractedText = '';
+      }
+      
       setSong(loadedSong);
       // Initialize edit fields
           setEditingTitle(loadedSong.title);
@@ -334,7 +352,18 @@ export function SongViewerPage() {
   };
 
   const getTransposedText = () => {
-    if (!song || !song.extractedText) return '';
+    if (!song) {
+      console.warn('SongViewerPage: getTransposedText called but song is null');
+      return '';
+    }
+    if (!song.extractedText) {
+      console.warn('SongViewerPage: getTransposedText called but song.extractedText is empty/null', {
+        songId: song.id,
+        extractedText: song.extractedText,
+        extractedTextType: typeof song.extractedText,
+      });
+      return '';
+    }
     if (transposeSteps === 0) return song.extractedText;
     return transposeSongText(song.extractedText, transposeSteps);
   };
@@ -343,7 +372,18 @@ export function SongViewerPage() {
    * Render text with chords highlighted in a different color
    */
   const renderTextWithChords = (text: string) => {
-    if (!text) return <Text style={[styles.lyricsText, { fontSize }]}>No lyrics available</Text>;
+    if (!text || text.trim() === '') {
+      return (
+        <View style={styles.emptyLyricsContainer}>
+          <Text style={[styles.emptyLyricsText, { color: theme.textSecondary }]}>
+            No lyrics available
+          </Text>
+          <Text style={[styles.emptyLyricsHint, { color: theme.textSecondary }]}>
+            Click "Edit" to add lyrics
+          </Text>
+        </View>
+      );
+    }
 
     const parts: Array<{ text: string; isChord: boolean }> = [];
     let lastIndex = 0;
@@ -1030,6 +1070,20 @@ const styles = StyleSheet.create({
     color: '#000',
     fontSize: 14,
     fontWeight: '600',
+  },
+  emptyLyricsContainer: {
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyLyricsText: {
+    fontSize: 16,
+    fontWeight: '500',
+    marginBottom: 8,
+  },
+  emptyLyricsHint: {
+    fontSize: 14,
+    fontStyle: 'italic',
   },
 });
 
