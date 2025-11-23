@@ -25,6 +25,41 @@ export function SettingsPage() {
   const [importing, setImporting] = useState(false);
 
   const handleExportSongs = async () => {
+    // Generate filename
+    const fileName = `songbook-export-${new Date().toISOString().split('T')[0]}.json`;
+    
+    // Determine file path based on platform
+    let filePath: string;
+    if (Platform.OS === 'web') {
+      // On web, file will be saved to Downloads folder
+      filePath = `Downloads/${fileName}`;
+    } else {
+      // On mobile, show the actual file system path
+      filePath = `${FileSystem.documentDirectory}${fileName}`;
+    }
+
+    // Show confirmation dialog with file path
+    const confirmMessage = Platform.OS === 'web'
+      ? `Export ${songs.length} song${songs.length !== 1 ? 's' : ''} to backup file?\n\nFile will be saved to:\n${filePath}\n\nYou can use this file to backup or restore your library.`
+      : `Export ${songs.length} song${songs.length !== 1 ? 's' : ''} to backup file?\n\nFile will be saved to:\n${filePath}\n\nYou can use this file to backup or restore your library.`;
+
+    const confirmed = Platform.OS === 'web' && typeof window !== 'undefined' && window.confirm
+      ? window.confirm(confirmMessage)
+      : await new Promise<boolean>((resolve) => {
+          Alert.alert(
+            'Export/Backup Songs',
+            confirmMessage,
+            [
+              { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+              { text: 'Export', onPress: () => resolve(true) },
+            ]
+          );
+        });
+
+    if (!confirmed) {
+      return; // User cancelled
+    }
+
     setExporting(true);
     try {
       const exportData = {
@@ -52,23 +87,23 @@ export function SettingsPage() {
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = `songbook-export-${new Date().toISOString().split('T')[0]}.json`;
+        link.download = fileName;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
         
         if (window.alert) {
-          window.alert(`Songs exported successfully!\n\nFile: ${link.download}\nSongs: ${songs.length}\n\nYou can use this file to backup or restore your library.`);
+          window.alert(`Songs exported successfully!\n\nFile: ${fileName}\nLocation: Downloads folder\nSongs: ${songs.length}\n\nYou can use this file to backup or restore your library.`);
         }
       } else {
-        const fileUri = FileSystem.documentDirectory + `songbook-export-${new Date().toISOString().split('T')[0]}.json`;
+        const fileUri = FileSystem.documentDirectory + fileName;
         await FileSystem.writeAsStringAsync(fileUri, jsonString);
         
         if (Sharing && await Sharing.isAvailableAsync()) {
           await Sharing.shareAsync(fileUri);
         } else {
-          Alert.alert('Export Complete', `Exported ${songs.length} songs to: ${fileUri}\n\nYou can use this file to backup or restore your library.`);
+          Alert.alert('Export Complete', `Exported ${songs.length} song${songs.length !== 1 ? 's' : ''} successfully!\n\nFile saved to:\n${fileUri}\n\nYou can use this file to backup or restore your library.`);
         }
       }
     } catch (error: any) {
