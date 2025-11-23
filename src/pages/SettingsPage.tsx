@@ -594,19 +594,17 @@ export function SettingsPage() {
                     </Text>
                   </View>
                   <View style={styles.backupFileActions}>
-                    {Platform.OS !== 'web' && (
-                      <TouchableOpacity
-                        style={[
-                          styles.shareBackupButton,
-                          { backgroundColor: theme.primary, borderColor: theme.primary }
-                        ]}
-                        onPress={() => handleShareBackup(file)}
-                      >
-                        <Text style={[styles.shareBackupButtonText, { color: theme.primaryText }]}>
-                          Share
-                        </Text>
-                      </TouchableOpacity>
-                    )}
+                    <TouchableOpacity
+                      style={[
+                        styles.shareBackupButton,
+                        { backgroundColor: theme.primary, borderColor: theme.primary }
+                      ]}
+                      onPress={() => handleShareBackup(file)}
+                    >
+                      <Text style={[styles.shareBackupButtonText, { color: theme.primaryText }]}>
+                        Share
+                      </Text>
+                    </TouchableOpacity>
                     <TouchableOpacity
                       style={[
                         styles.deleteBackupButton,
@@ -734,15 +732,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   shareBackupButton: {
-    padding: 8,
-    paddingHorizontal: 12,
+    padding: Platform.OS === 'web' ? 8 : 10,
+    paddingHorizontal: Platform.OS === 'web' ? 12 : 14,
     borderRadius: 6,
     borderWidth: 1,
     minWidth: 70,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   shareBackupButtonText: {
-    fontSize: 12,
+    fontSize: Platform.OS === 'web' ? 12 : 13,
     fontWeight: '600',
   },
   backupFileName: {
