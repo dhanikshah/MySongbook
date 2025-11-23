@@ -12,7 +12,7 @@
     "android:device": "ulimit -n 4096 && EXPO_PUBLIC_API_URL=http://$(node get-local-ip.js):3001 expo start --android",
     "backend": "cd backend && npm run dev",
     "build:android": "eas build --platform android",
-    "build:apk": "export JAVA_HOME=\"/Applications/Android Studio.app/Contents/jbr/Contents/Home\" && npx expo prebuild --platform android && cd android && ./gradlew assembleRelease",
+    "build:apk": "bash scripts/build-apk.sh",
     "build:apk:eas": "eas build --platform android --profile preview",
     "test:save": "node test-save-song.js",
     "test:delete": "node test-delete-song.js",
