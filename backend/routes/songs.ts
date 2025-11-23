@@ -356,11 +356,14 @@ router.put('/:id', async (req: Request, res: Response) => {
       tags: updates.tags,
     });
 
-    const existing = await db.prepare('SELECT * FROM songs WHERE id = ?').get(songId) as Song | undefined;
-    if (!existing) {
+    const rawExisting = await db.prepare('SELECT * FROM songs WHERE id = ?').get(songId) as any;
+    if (!rawExisting) {
       console.log('Backend: Song not found:', songId);
       return res.status(404).json({ error: 'Song not found' });
     }
+
+    // Map PostgreSQL lowercase columns to camelCase
+    const existing = mapPostgresRowToSong(rawExisting);
 
     // Ensure artist is an array
     let artistArray: string[] = existing.artist;
