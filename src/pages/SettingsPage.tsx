@@ -129,12 +129,26 @@ export function SettingsPage() {
         await loadBackupFiles();
         
         // Use Sharing API to let user save/share the file (can save to Downloads)
+        // On Android, we need to ensure the file is accessible for sharing
         try {
           const isSharingAvailable = await Sharing.isAvailableAsync();
           console.log('Sharing available:', isSharingAvailable);
           
-          if (isSharingAvailable) {
+          if (isSharingAvailable && Platform.OS !== 'web') {
             console.log('Opening share dialog for file:', fileUri);
+            
+            // Verify file exists and is readable
+            const shareFileInfo = await FileSystem.getInfoAsync(fileUri);
+            if (!shareFileInfo.exists) {
+              throw new Error('File does not exist for sharing');
+            }
+            
+            console.log('File info for sharing:', {
+              exists: shareFileInfo.exists,
+              size: shareFileInfo.size,
+              uri: fileUri
+            });
+            
             // Share the file - this will open Android's share dialog
             await Sharing.shareAsync(fileUri, {
               mimeType: 'application/json',
@@ -148,9 +162,15 @@ export function SettingsPage() {
           }
         } catch (sharingError: any) {
           console.error('Sharing error:', sharingError);
+          console.error('Sharing error details:', {
+            message: sharingError?.message,
+            code: sharingError?.code,
+            stack: sharingError?.stack
+          });
+          
           // Fallback to alert if sharing fails
           const message = Platform.OS === 'android'
-            ? `Exported ${songs.length} song${songs.length !== 1 ? 's' : ''} successfully!\n\nFile saved to:\n${fileUri}\n\nTo access via ADB:\nadb backup -noapk com.mysongbook.app\n\nOr use the Share button in the backup files list below.`
+            ? `Exported ${songs.length} song${songs.length !== 1 ? 's' : ''} successfully!\n\nFile saved to:\n${fileUri}\n\nTo access:\n1. Use the "Share" button in the backup files list below\n2. Or use ADB: adb backup -noapk com.mysongbook.app`
             : `Exported ${songs.length} song${songs.length !== 1 ? 's' : ''} successfully!\n\nFile saved to:\n${fileUri}\n\nYou can use this file to backup or restore your library.`;
           Alert.alert('Export Complete', message);
         }
@@ -251,19 +271,38 @@ export function SettingsPage() {
   // Share backup file
   const handleShareBackup = async (file: BackupFile) => {
     try {
+      console.log('Attempting to share file:', file.uri);
+      
+      // Verify file exists
+      const fileInfo = await FileSystem.getInfoAsync(file.uri);
+      if (!fileInfo.exists) {
+        Alert.alert('Error', 'File does not exist');
+        return;
+      }
+      
+      console.log('File exists, checking sharing availability');
       const isSharingAvailable = await Sharing.isAvailableAsync();
+      console.log('Sharing available:', isSharingAvailable);
+      
       if (isSharingAvailable) {
+        console.log('Opening share dialog for:', file.uri);
         await Sharing.shareAsync(file.uri, {
           mimeType: 'application/json',
           dialogTitle: 'Share Backup File',
           UTI: 'public.json',
         });
+        console.log('Share dialog opened successfully');
       } else {
-        Alert.alert('Sharing Not Available', 'Sharing is not available on this device.');
+        Alert.alert('Sharing Not Available', 'Sharing is not available on this device. You can use ADB backup command to access the file.');
       }
     } catch (error: any) {
       console.error('Error sharing backup file:', error);
-      Alert.alert('Error', `Failed to share file: ${error?.message || 'Unknown error'}`);
+      console.error('Error details:', {
+        message: error?.message,
+        code: error?.code,
+        stack: error?.stack
+      });
+      Alert.alert('Error', `Failed to share file: ${error?.message || 'Unknown error'}\n\nYou can use ADB backup command to access the file.`);
     }
   };
 
@@ -317,28 +356,56 @@ export function SettingsPage() {
   const handleImportSongs = async () => {
     setImporting(true);
     try {
+      console.log('Opening document picker for import');
       const result = await DocumentPicker.getDocumentAsync({
-        type: ['application/json'],
+        type: ['application/json', 'text/json', '*/*'], // Allow all file types as fallback
         copyToCacheDirectory: true,
+        multiple: false,
       });
 
+      console.log('Document picker result:', result);
+
       if (result.canceled || !result.assets[0]) {
+        console.log('Document picker canceled or no file selected');
         setImporting(false);
         return;
       }
 
       const file = result.assets[0];
+      console.log('Selected file:', {
+        name: file.name,
+        uri: file.uri,
+        size: file.size,
+        mimeType: file.mimeType
+      });
+
       let jsonData: any;
 
       if (Platform.OS === 'web') {
         // For web, read the file
+        console.log('Reading file on web');
         const response = await fetch(file.uri);
+        if (!response.ok) {
+          throw new Error(`Failed to read file: ${response.statusText}`);
+        }
         jsonData = await response.json();
       } else {
         // For mobile, read from file system
+        console.log('Reading file from file system:', file.uri);
+        
+        // Check if file exists
+        const fileInfo = await FileSystem.getInfoAsync(file.uri);
+        if (!fileInfo.exists) {
+          throw new Error(`File does not exist: ${file.uri}`);
+        }
+        
+        console.log('File exists, reading content');
         const fileContent = await FileSystem.readAsStringAsync(file.uri);
+        console.log('File content length:', fileContent.length);
         jsonData = JSON.parse(fileContent);
       }
+      
+      console.log('Parsed JSON data, songs count:', jsonData.songs?.length || 0);
 
       // Validate the import data
       if (!jsonData.songs || !Array.isArray(jsonData.songs)) {
