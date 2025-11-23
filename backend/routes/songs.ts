@@ -71,8 +71,15 @@ router.get('/', async (req: Request, res: Response) => {
         parsedArtists = song.artist;
       }
       
+      // Ensure extractedText is always a string (never null/undefined)
+      let extractedText = '';
+      if (song.extractedText !== undefined && song.extractedText !== null) {
+        extractedText = String(song.extractedText);
+      }
+      
       return {
         ...song,
+        extractedText: extractedText, // Ensure it's always a string
         tags: parsedTags,
         artist: parsedArtists,
       };
@@ -97,17 +104,31 @@ router.get('/:id', async (req: Request, res: Response) => {
 
     // Log the raw song data for debugging
     console.log('Backend: Fetching song by ID:', req.params.id);
-    console.log('Backend: Song data from DB:', {
+    console.log('Backend: Song data from DB (raw):', {
       id: song.id,
       title: song.title,
+      hasExtractedText: 'extractedText' in song,
+      extractedTextValue: song.extractedText,
+      extractedTextType: typeof song.extractedText,
       extractedTextLength: song.extractedText ? song.extractedText.length : 0,
       extractedTextPreview: song.extractedText ? song.extractedText.substring(0, 100) : '(empty)',
       extractedTextIsNull: song.extractedText === null,
       extractedTextIsUndefined: song.extractedText === undefined,
+      allKeys: Object.keys(song),
     });
 
     // Ensure extractedText is always a string (never null/undefined)
-    const extractedText = song.extractedText || '';
+    // Handle cases where the field might be undefined, null, or missing
+    let extractedText = '';
+    if (song.extractedText !== undefined && song.extractedText !== null) {
+      extractedText = String(song.extractedText);
+    } else {
+      // Field is undefined or null - this shouldn't happen with NOT NULL constraint
+      // but handle it gracefully
+      console.warn('Backend: WARNING - extractedText is undefined/null for song:', song.id);
+      console.warn('Backend: This song may need to be updated with lyrics');
+      extractedText = '';
+    }
 
     // Parse JSON tags and artists
     let parsedArtists: string[] = [];
