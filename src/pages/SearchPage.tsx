@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Platform, useWindowDimensions, StatusBar, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -12,9 +12,17 @@ export function SearchPage() {
   const navigation = useNavigation<any>();
   const { songs, fetchSongs } = useSongs();
   const { theme } = useTheme();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const isMobile = Platform.OS !== 'web' && width < 768;
   const insets = useSafeAreaInsets();
+  const filtersContainerRef = useRef<View>(null);
+  const [filtersHeight, setFiltersHeight] = useState(200); // Default estimate
+  
+  // Calculate results ScrollView height for mobile to extend to bottom menu bar
+  // Account for: top inset, page title (~40px), search bar (~50px), filters (measured), results title (~30px), bottom nav (~60px), bottom inset, padding
+  const resultsScrollViewHeight = isMobile 
+    ? Math.max(200, height - insets.top - insets.bottom - 40 - 50 - filtersHeight - 30 - 60 - 24) // Reserve space for all UI elements
+    : undefined;
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
@@ -134,7 +142,15 @@ export function SearchPage() {
         <Text style={[styles.pageTitle, { color: theme.text }]}>Search</Text>
         <SearchBar value={searchQuery} onChangeText={setSearchQuery} placeholder="Search..." />
 
-        <View style={[styles.filtersContainer, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <View 
+          ref={filtersContainerRef}
+          onLayout={(event) => {
+            if (isMobile) {
+              const { height: measuredHeight } = event.nativeEvent.layout;
+              setFiltersHeight(measuredHeight);
+            }
+          }}
+          style={[styles.filtersContainer, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <View style={styles.filtersHeader}>
           <Text style={[styles.filtersTitle, { color: theme.text }]}>Filters</Text>
           {(selectedTags.length > 0 || selectedArtists.length > 0 || selectedKeys.length > 0 || searchQuery.trim()) ? (
@@ -238,7 +254,10 @@ export function SearchPage() {
           Results{filteredSongs.length > 0 ? ` (${filteredSongs.length})` : ''}
         </Text>
         <ScrollView 
-          style={styles.resultsScrollView}
+          style={[
+            styles.resultsScrollView,
+            isMobile && resultsScrollViewHeight ? { height: resultsScrollViewHeight } : undefined
+          ]}
           refreshControl={
             Platform.OS !== 'web' ? (
               <RefreshControl
@@ -406,7 +425,7 @@ const styles = StyleSheet.create({
     marginTop: 0,
   },
       resultsScrollView: {
-        flex: 1,
+        flex: Platform.OS === 'web' ? 1 : 0, // Use flex on web, fixed height on mobile
         paddingBottom: Platform.OS === 'web' ? 0 : 20, // Extra space for bottom nav on mobile
       },
   noResultsText: {

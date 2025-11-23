@@ -20,9 +20,9 @@ export function LibraryPage() {
   const [refreshing, setRefreshing] = useState(false);
 
   // Calculate ScrollView height for mobile to extend to bottom menu bar
-  // Account for: top inset, header (~50px), search bar (~50px), bottom nav (~60px), bottom inset
+  // Account for: top inset, header (~50px), search bar (~50px), bottom nav (~60px), bottom inset, padding
   const scrollViewHeight = isMobile 
-    ? Math.max(200, height - insets.top - insets.bottom - 160) // Reserve ~160px for UI elements, min 200px
+    ? Math.max(200, height - insets.top - insets.bottom - 50 - 50 - 60 - 24) // Reserve space for header, search bar, bottom nav, and padding
     : undefined;
 
   // Refresh songs when page comes into focus (e.g., after deleting/editing a song)
