@@ -34,18 +34,29 @@ export function SettingsPage() {
   const [loadingBackups, setLoadingBackups] = useState(false);
   const [deletingFile, setDeletingFile] = useState<string | null>(null);
 
+  // Get backup directory - use cache directory on Android for better ADB accessibility
+  const getBackupDirectory = (): string => {
+    if (Platform.OS === 'android') {
+      // Use cache directory - more accessible via ADB than documentDirectory
+      return FileSystem.cacheDirectory || FileSystem.documentDirectory || '';
+    }
+    // iOS and web use documentDirectory
+    return FileSystem.documentDirectory || '';
+  };
+
   const handleExportSongs = async () => {
     // Generate filename
     const fileName = `songbook-export-${new Date().toISOString().split('T')[0]}.json`;
     
     // Determine file path based on platform
     let filePath: string;
+    const backupDir = getBackupDirectory();
     if (Platform.OS === 'web') {
       // On web, file will be saved to Downloads folder
       filePath = `Downloads/${fileName}`;
     } else {
-      // On mobile, show the actual file system path
-      filePath = `${FileSystem.documentDirectory}${fileName}`;
+      // On mobile, save to backup directory (cache on Android, documentDirectory on iOS)
+      filePath = `${backupDir}${fileName}`;
     }
 
     // Show confirmation dialog with file path
@@ -107,16 +118,27 @@ export function SettingsPage() {
           window.alert(`Songs exported successfully!\n\nFile: ${fileName}\nLocation: Downloads folder\nSongs: ${songs.length}\n\nYou can use this file to backup or restore your library.`);
         }
       } else {
-        const fileUri = FileSystem.documentDirectory + fileName;
+        // On mobile, save the file to backup directory
+        const backupDir = getBackupDirectory();
+        const fileUri = backupDir + fileName;
+        
         await FileSystem.writeAsStringAsync(fileUri, jsonString);
         
         // Refresh backup files list after export
         await loadBackupFiles();
         
+        // Use Sharing API to let user save/share the file (can save to Downloads)
         if (Sharing && await Sharing.isAvailableAsync()) {
-          await Sharing.shareAsync(fileUri);
+          await Sharing.shareAsync(fileUri, {
+            mimeType: 'application/json',
+            dialogTitle: 'Save Backup File',
+            UTI: 'public.json',
+          });
         } else {
-          Alert.alert('Export Complete', `Exported ${songs.length} song${songs.length !== 1 ? 's' : ''} successfully!\n\nFile saved to:\n${fileUri}\n\nYou can use this file to backup or restore your library.`);
+          const message = Platform.OS === 'android'
+            ? `Exported ${songs.length} song${songs.length !== 1 ? 's' : ''} successfully!\n\nFile saved to:\n${fileUri}\n\nADB access:\nadb shell run-as com.mysongbook.app cat ${fileUri.replace(FileSystem.cacheDirectory || '', '/data/data/com.mysongbook.app/cache/')}\n\nOr use Sharing to save to Downloads folder.`
+            : `Exported ${songs.length} song${songs.length !== 1 ? 's' : ''} successfully!\n\nFile saved to:\n${fileUri}\n\nYou can use this file to backup or restore your library.`;
+          Alert.alert('Export Complete', message);
         }
       }
     } catch (error: any) {
@@ -142,12 +164,18 @@ export function SettingsPage() {
 
     setLoadingBackups(true);
     try {
-      const files = await FileSystem.readDirectoryAsync(FileSystem.documentDirectory || '');
+      const backupDir = getBackupDirectory();
+      if (!backupDir) {
+        setBackupFiles([]);
+        return;
+      }
+
+      const files = await FileSystem.readDirectoryAsync(backupDir);
       const backupFilesList: BackupFile[] = [];
       
       for (const fileName of files) {
         if (fileName.startsWith('songbook-export-') && fileName.endsWith('.json')) {
-          const fileUri = FileSystem.documentDirectory + fileName;
+          const fileUri = backupDir + fileName;
           try {
             const fileInfo = await FileSystem.getInfoAsync(fileUri);
             if (fileInfo.exists && fileInfo.size !== undefined) {
