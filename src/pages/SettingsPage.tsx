@@ -284,16 +284,37 @@ export function SettingsPage() {
       const isSharingAvailable = await Sharing.isAvailableAsync();
       console.log('Sharing available:', isSharingAvailable);
       
-      if (isSharingAvailable) {
-        console.log('Opening share dialog for:', file.uri);
-        await Sharing.shareAsync(file.uri, {
+      if (!isSharingAvailable) {
+        Alert.alert('Sharing Not Available', 'Sharing is not available on this device. You can use ADB backup command to access the file.');
+        return;
+      }
+      
+      // On Android, ensure the file URI is properly formatted for sharing
+      let shareUri = file.uri;
+      
+      // Try to share the file
+      console.log('Opening share dialog for:', shareUri);
+      try {
+        await Sharing.shareAsync(shareUri, {
           mimeType: 'application/json',
           dialogTitle: 'Share Backup File',
           UTI: 'public.json',
         });
         console.log('Share dialog opened successfully');
-      } else {
-        Alert.alert('Sharing Not Available', 'Sharing is not available on this device. You can use ADB backup command to access the file.');
+      } catch (shareError: any) {
+        console.error('Share error:', shareError);
+        // If sharing fails, try with file:// prefix if not already present
+        if (Platform.OS === 'android' && !shareUri.startsWith('file://') && !shareUri.startsWith('content://')) {
+          shareUri = 'file://' + shareUri;
+          console.log('Retrying with file:// prefix:', shareUri);
+          await Sharing.shareAsync(shareUri, {
+            mimeType: 'application/json',
+            dialogTitle: 'Share Backup File',
+            UTI: 'public.json',
+          });
+        } else {
+          throw shareError;
+        }
       }
     } catch (error: any) {
       console.error('Error sharing backup file:', error);
@@ -302,7 +323,10 @@ export function SettingsPage() {
         code: error?.code,
         stack: error?.stack
       });
-      Alert.alert('Error', `Failed to share file: ${error?.message || 'Unknown error'}\n\nYou can use ADB backup command to access the file.`);
+      Alert.alert(
+        'Error Sharing File',
+        `Failed to share file: ${error?.message || 'Unknown error'}\n\nAlternative options:\n1. Use ADB backup command\n2. The file is saved in the app's cache directory\n3. Try exporting again and use the share dialog that appears`
+      );
     }
   };
 
