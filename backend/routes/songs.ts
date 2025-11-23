@@ -9,6 +9,23 @@ import { Song, CreateSongDto, UpdateSongDto } from '../types/Song';
 const router = express.Router();
 const upload = multer({ dest: 'uploads/' });
 
+// Helper function to map PostgreSQL lowercase column names to camelCase
+// PostgreSQL converts unquoted column names to lowercase, so we need to map them back
+const mapPostgresRowToSong = (row: any): any => {
+  return {
+    id: row.id,
+    title: row.title,
+    artist: row.artist,
+    type: row.type,
+    key: row.key,
+    tags: row.tags,
+    rawFileUrl: row.rawfileurl || row.rawFileUrl, // Handle both cases
+    extractedText: row.extractedtext || row.extractedText || '', // PostgreSQL stores as lowercase
+    createdAt: row.createdat || row.createdAt,
+    updatedAt: row.updatedat || row.updatedAt,
+  };
+};
+
 // Get all songs with optional filters
 router.get('/', async (req: Request, res: Response) => {
   try {
@@ -45,10 +62,13 @@ router.get('/', async (req: Request, res: Response) => {
 
     query += ' ORDER BY updatedAt DESC';
 
-    const songs = await db.prepare(query).all(...params) as Song[];
+    const rawSongs = await db.prepare(query).all(...params) as any[];
     
-    // Parse JSON tags and artists
-    const parsedSongs = songs.map(song => {
+    // Parse JSON tags and artists, and map PostgreSQL lowercase columns
+    const parsedSongs = rawSongs.map(rawSong => {
+      // Map PostgreSQL lowercase columns to camelCase
+      const song = mapPostgresRowToSong(rawSong);
+      
       const parsedTags = JSON.parse(song.tags as any);
       let parsedArtists: string[] = [];
       
@@ -96,15 +116,19 @@ router.get('/', async (req: Request, res: Response) => {
 router.get('/:id', async (req: Request, res: Response) => {
   try {
     const db = getDb();
-    const song = await db.prepare('SELECT * FROM songs WHERE id = ?').get(req.params.id) as Song | undefined;
+    const rawSong = await db.prepare('SELECT * FROM songs WHERE id = ?').get(req.params.id) as any;
 
-    if (!song) {
+    if (!rawSong) {
       return res.status(404).json({ error: 'Song not found' });
     }
 
+    // Map PostgreSQL lowercase columns to camelCase
+    const song = mapPostgresRowToSong(rawSong);
+
     // Log the raw song data for debugging
     console.log('Backend: Fetching song by ID:', req.params.id);
-    console.log('Backend: Song data from DB (raw):', {
+    console.log('Backend: Raw DB row keys:', Object.keys(rawSong));
+    console.log('Backend: Song data from DB (mapped):', {
       id: song.id,
       title: song.title,
       hasExtractedText: 'extractedText' in song,
@@ -114,11 +138,9 @@ router.get('/:id', async (req: Request, res: Response) => {
       extractedTextPreview: song.extractedText ? song.extractedText.substring(0, 100) : '(empty)',
       extractedTextIsNull: song.extractedText === null,
       extractedTextIsUndefined: song.extractedText === undefined,
-      allKeys: Object.keys(song),
     });
 
     // Ensure extractedText is always a string (never null/undefined)
-    // Handle cases where the field might be undefined, null, or missing
     let extractedText = '';
     if (song.extractedText !== undefined && song.extractedText !== null) {
       extractedText = String(song.extractedText);
