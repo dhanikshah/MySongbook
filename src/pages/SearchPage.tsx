@@ -19,11 +19,10 @@ export function SearchPage() {
   const [filtersHeight, setFiltersHeight] = useState(200); // Default estimate
   
   // Calculate results ScrollView height for mobile to extend to bottom menu bar
-  // Match the lyrics view box calculation: reserve minimal space for UI elements (similar to SongViewerPage)
-  // Account for: top inset, page title (~40px), search bar (~50px), filters (measured dynamically), results title (~30px), bottom nav (~60px), bottom inset
-  // Reserve ~120px for fixed UI elements (title, search bar, results title) + dynamic filters height
+  // Account for: top inset, container padding top (12px), page title (~40px), search bar (~50px), filters (measured dynamically), results title (~30px), bottom nav (60px), bottom inset
+  // Bottom nav is absolutely positioned, so we need to account for it in the ScrollView height
   const resultsScrollViewHeight = isMobile 
-    ? Math.max(200, height - insets.top - insets.bottom - 120 - filtersHeight) // Maximized: extends to bottom menu bar (reserved ~120px + filters height, min 200px)
+    ? Math.max(200, height - insets.top - insets.bottom - 12 - 40 - 50 - filtersHeight - 30 - 60) // Maximized: extends to bottom menu bar (account for all UI elements, min 200px)
     : undefined;
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -318,7 +317,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: Platform.OS === 'web' ? 24 : 12,
-    paddingBottom: Platform.OS === 'web' ? 24 : 80,
+    paddingBottom: Platform.OS === 'web' ? 24 : 0, // No bottom padding on mobile - bottom nav overlays content
   },
   filtersContainer: {
     borderRadius: 8,

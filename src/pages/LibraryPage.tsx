@@ -20,9 +20,10 @@ export function LibraryPage() {
   const [refreshing, setRefreshing] = useState(false);
 
   // Calculate ScrollView height for mobile to extend to bottom menu bar
-  // Match the lyrics view box calculation: reserve only ~100px for UI elements (similar to SongViewerPage)
+  // Account for: top inset, container padding top (12px), header (~50px), search bar (~50px), container padding bottom (80px), bottom nav (60px), bottom inset
+  // Bottom nav is absolutely positioned, so we need to account for it in the ScrollView height
   const scrollViewHeight = isMobile 
-    ? Math.max(200, height - insets.top - insets.bottom - 100) // Maximized: extends to bottom menu bar (reserved ~100px for header/search bar, min 200px)
+    ? Math.max(200, height - insets.top - insets.bottom - 12 - 50 - 50 - 60) // Maximized: extends to bottom menu bar (account for all UI elements, min 200px)
     : undefined;
 
   // Refresh songs when page comes into focus (e.g., after deleting/editing a song)
@@ -307,7 +308,7 @@ const styles = StyleSheet.create({
     width: '100%',
     minHeight: Platform.OS === 'web' ? '100vh' : '100%',
     padding: Platform.OS === 'web' ? 24 : 12,
-    paddingBottom: Platform.OS === 'web' ? 24 : 80,
+    paddingBottom: Platform.OS === 'web' ? 24 : 0, // No bottom padding on mobile - bottom nav overlays content
   },
   scrollView: {
     flex: Platform.OS === 'web' ? 1 : 0, // Use flex on web, fixed height on mobile
