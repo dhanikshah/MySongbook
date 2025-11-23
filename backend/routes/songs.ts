@@ -331,11 +331,12 @@ router.put('/:id', async (req: Request, res: Response) => {
     });
     console.log('Backend: Artist value:', updated.artist, 'Type:', typeof updated.artist);
 
-    await db.prepare(`
+    const updateStmt = db.prepare(`
       UPDATE songs
       SET title = ?, artist = ?, type = ?, key = ?, tags = ?, extractedText = ?, updatedAt = ?
       WHERE id = ?
-    `).run(
+    `);
+    const updateResult = updateStmt.run(
       updated.title,
       JSON.stringify(updated.artist), // Store artists as JSON array
       updated.type,
@@ -345,6 +346,8 @@ router.put('/:id', async (req: Request, res: Response) => {
       updated.updatedAt,
       updated.id
     );
+    // Handle both Promise and synchronous results
+    await (updateResult instanceof Promise ? updateResult : Promise.resolve(updateResult));
 
     console.log('Backend: Song updated successfully:', songId);
     res.json(updated);
