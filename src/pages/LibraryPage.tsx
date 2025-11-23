@@ -10,7 +10,7 @@ export function LibraryPage() {
   const navigation = useNavigation<any>();
   const { songs, loading, fetchSongs, deleteSong } = useSongs();
   const { theme } = useTheme();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const isMobile = Platform.OS !== 'web' && width < 768;
   const insets = useSafeAreaInsets();
   const [searchQuery, setSearchQuery] = useState('');
@@ -18,6 +18,12 @@ export function LibraryPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Calculate ScrollView height for mobile to extend to bottom menu bar
+  // Account for: top inset, header (~50px), search bar (~50px), bottom nav (~60px), bottom inset
+  const scrollViewHeight = isMobile 
+    ? Math.max(200, height - insets.top - insets.bottom - 160) // Reserve ~160px for UI elements, min 200px
+    : undefined;
 
   // Refresh songs when page comes into focus (e.g., after deleting/editing a song)
   // This handles both initial load and when returning to the page
@@ -211,7 +217,10 @@ export function LibraryPage() {
         <Text style={[styles.emptyText, { color: theme.textSecondary }]}>No songs found</Text>
       ) : (
         <ScrollView 
-          style={styles.scrollView}
+          style={[
+            styles.scrollView,
+            isMobile && scrollViewHeight ? { height: scrollViewHeight } : undefined
+          ]}
           refreshControl={
             Platform.OS !== 'web' ? (
               <RefreshControl
@@ -279,12 +288,14 @@ export function LibraryPage() {
         </ScrollView>
       )}
       
-      <TouchableOpacity
-        style={[styles.addButton, { backgroundColor: theme.primary, borderColor: theme.primary }]}
-        onPress={() => navigation.navigate('AddSong')}
-      >
-        <Text style={[styles.addButtonText, { color: theme.primaryText }]}>+ Add Song</Text>
-      </TouchableOpacity>
+      {!isMobile && (
+        <TouchableOpacity
+          style={[styles.addButton, { backgroundColor: theme.primary, borderColor: theme.primary }]}
+          onPress={() => navigation.navigate('AddSong')}
+        >
+          <Text style={[styles.addButtonText, { color: theme.primaryText }]}>+ Add Song</Text>
+        </TouchableOpacity>
+      )}
           </View>
         </View>
   );
@@ -299,7 +310,7 @@ const styles = StyleSheet.create({
     paddingBottom: Platform.OS === 'web' ? 24 : 80,
   },
   scrollView: {
-    flex: 1,
+    flex: Platform.OS === 'web' ? 1 : 0, // Use flex on web, fixed height on mobile
   },
   loadingText: {
     textAlign: 'center',
