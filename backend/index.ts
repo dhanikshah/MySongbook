@@ -70,6 +70,16 @@ app.use(express.urlencoded({ extended: true }));
 // Initialize database
 initDatabase();
 
+// API Info endpoint
+app.get('/api/info', (req, res) => {
+  res.json({
+    name: 'My Songbook API',
+    version: '1.0.1',
+    status: 'running',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Routes
 app.use('/api/songs', songsRouter);
 
@@ -92,7 +102,12 @@ app.post('/api/ocr', upload.single('file'), async (req, res) => {
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok' });
+  res.json({ 
+    status: 'ok',
+    version: '1.0.1',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development'
+  });
 });
 
 app.listen(PORT, '0.0.0.0', () => {
