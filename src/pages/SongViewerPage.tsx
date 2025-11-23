@@ -55,35 +55,68 @@ export function SongViewerPage() {
       return; // Disable auto-check on web to save costs
     }
 
-    const checkInterval = setInterval(async () => {
-      // Only check if page is focused
+    let checkInterval: NodeJS.Timeout | null = null;
+    let initialTimeout: NodeJS.Timeout | null = null;
+
+    // Wait 60 seconds before first check, then continue every 60 seconds
+    initialTimeout = setTimeout(() => {
       if (!isFocused) {
         return;
       }
 
-      try {
-        // Try to fetch the song to see if it still exists
-        const currentSong = await songApi.getById(songId);
-        // If we get here, song still exists - update it in case it was modified
-        setSong(currentSong);
-      } catch (error: any) {
-        // Song was deleted (404) or other error
-        if (error?.response?.status === 404 || error?.message?.includes('404')) {
-          console.log('SongViewerPage: Song was deleted, navigating to Library...');
-          setError('Song not found. It may have been deleted.');
-          setSong(null);
-          // Auto-navigate back to Library after 1 second
-          setTimeout(() => {
-            navigation.navigate('Library');
-          }, 1000);
+      // First check after 60 seconds
+      (async () => {
+        try {
+          const currentSong = await songApi.getById(songId);
+          setSong(currentSong);
+        } catch (error: any) {
+          if (error?.response?.status === 404 || error?.message?.includes('404')) {
+            console.log('SongViewerPage: Song was deleted, navigating to Library...');
+            setError('Song not found. It may have been deleted.');
+            setSong(null);
+            setTimeout(() => {
+              navigation.navigate('Library');
+            }, 1000);
+          }
         }
-      }
-    }, 60000); // Check every 60 seconds (reduced from 5 seconds to save costs)
+      })();
+
+      // Then set up interval for subsequent checks
+      checkInterval = setInterval(async () => {
+        // Only check if page is focused
+        if (!isFocused) {
+          return;
+        }
+
+        try {
+          // Try to fetch the song to see if it still exists
+          const currentSong = await songApi.getById(songId);
+          // If we get here, song still exists - update it in case it was modified
+          setSong(currentSong);
+        } catch (error: any) {
+          // Song was deleted (404) or other error
+          if (error?.response?.status === 404 || error?.message?.includes('404')) {
+            console.log('SongViewerPage: Song was deleted, navigating to Library...');
+            setError('Song not found. It may have been deleted.');
+            setSong(null);
+            // Auto-navigate back to Library after 1 second
+            setTimeout(() => {
+              navigation.navigate('Library');
+            }, 1000);
+          }
+        }
+      }, 60000); // Check every 60 seconds after the first one
+    }, 60000); // Wait 60 seconds before first check
 
     return () => {
-      clearInterval(checkInterval);
+      if (checkInterval) {
+        clearInterval(checkInterval);
+      }
+      if (initialTimeout) {
+        clearTimeout(initialTimeout);
+      }
     };
-  }, [song, songId, loading, isFocused]);
+  }, [song, songId, loading, isFocused, navigation]);
 
   const loadSong = async () => {
     try {

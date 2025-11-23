@@ -36,6 +36,7 @@ export function SearchPage() {
   // Only refresh when page is focused and on mobile (web can use manual refresh)
   useEffect(() => {
     let refreshInterval: NodeJS.Timeout | null = null;
+    let initialTimeout: NodeJS.Timeout | null = null;
     let isMounted = true;
 
     // Only enable auto-refresh on mobile devices (not web)
@@ -43,11 +44,19 @@ export function SearchPage() {
       return; // Disable auto-refresh on web to save costs
     }
 
-    const startRefresh = () => {
-      if (refreshInterval) {
-        clearInterval(refreshInterval);
+    // Wait 60 seconds before first auto-refresh, then continue every 60 seconds
+    initialTimeout = setTimeout(() => {
+      if (!isMounted || !isFocused) {
+        return;
       }
-      
+
+      // First refresh after 60 seconds
+      console.log('SearchPage: Auto-refreshing songs (silent, first refresh)...');
+      fetchSongs(undefined, true).catch(error => {
+        console.error('SearchPage: Error auto-refreshing songs:', error);
+      });
+
+      // Then set up interval for subsequent refreshes
       refreshInterval = setInterval(() => {
         if (!isMounted) {
           if (refreshInterval) clearInterval(refreshInterval);
@@ -64,18 +73,19 @@ export function SearchPage() {
         fetchSongs(undefined, true).catch(error => {
           console.error('SearchPage: Error auto-refreshing songs:', error);
         });
-      }, 60000); // Refresh every 60 seconds (reduced from 5 seconds to save costs)
-    };
-
-    startRefresh();
+      }, 60000); // Refresh every 60 seconds after the first one
+    }, 60000); // Wait 60 seconds before first refresh
 
     return () => {
       isMounted = false;
       if (refreshInterval) {
         clearInterval(refreshInterval);
       }
+      if (initialTimeout) {
+        clearTimeout(initialTimeout);
+      }
     };
-  }, [isFocused, fetchSongs]); // Include isFocused to check focus state
+  }, [isFocused, fetchSongs]); // Re-run when focus changes to restart the timer
 
   const allTags = Array.from(new Set(songs.flatMap(s => s.tags || []))).sort();
   const allArtists = Array.from(new Set(
