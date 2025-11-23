@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Platform, useWindowDimensions, StatusBar } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { SearchBar } from '../components/SearchBar';
 import { useSongs } from '../../app/hooks/useSongs';
 import { useTheme } from '../../app/context/ThemeContext';
@@ -10,6 +10,7 @@ const MUSICAL_KEYS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#'
 
 export function SearchPage() {
   const navigation = useNavigation<any>();
+  const isFocused = useIsFocused();
   const { songs, fetchSongs } = useSongs();
   const { theme } = useTheme();
   const { width } = useWindowDimensions();
@@ -54,7 +55,7 @@ export function SearchPage() {
         }
         
         // Only refresh if page is focused
-        if (!navigation.isFocused()) {
+        if (!isFocused) {
           return;
         }
         
@@ -74,7 +75,7 @@ export function SearchPage() {
         clearInterval(refreshInterval);
       }
     };
-  }, [navigation, fetchSongs]); // Include navigation to check focus state
+  }, [isFocused, fetchSongs]); // Include isFocused to check focus state
 
   const allTags = Array.from(new Set(songs.flatMap(s => s.tags || []))).sort();
   const allArtists = Array.from(new Set(

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput, Alert, Platform, useWindowDimensions, StatusBar } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRoute, useNavigation } from '@react-navigation/native';
+import { useRoute, useNavigation, useIsFocused } from '@react-navigation/native';
 import { songApi } from '../../app/services/api';
 import { Song } from '../../app/types/Song';
 import { transposeSongText, CHORD_PATTERN } from '../../app/utils/chordTranspose';
@@ -13,6 +13,7 @@ const MUSICAL_KEYS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#'
 export function SongViewerPage() {
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
+  const isFocused = useIsFocused();
   const { songId } = route.params;
   const { updateSong, deleteSong } = useSongs();
   const { theme } = useTheme();
@@ -56,7 +57,7 @@ export function SongViewerPage() {
 
     const checkInterval = setInterval(async () => {
       // Only check if page is focused
-      if (!navigation.isFocused()) {
+      if (!isFocused) {
         return;
       }
 
@@ -82,7 +83,7 @@ export function SongViewerPage() {
     return () => {
       clearInterval(checkInterval);
     };
-  }, [song, songId, loading, navigation]);
+  }, [song, songId, loading, isFocused]);
 
   const loadSong = async () => {
     try {

@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, Platform, useWindowDimensions, SafeAreaView, StatusBar } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { SearchBar } from '../components/SearchBar';
 import { useSongs } from '../../app/hooks/useSongs';
 import { useTheme } from '../../app/context/ThemeContext';
 
 export function LibraryPage() {
   const navigation = useNavigation<any>();
+  const isFocused = useIsFocused();
   const { songs, loading, fetchSongs, deleteSong } = useSongs();
   const { theme } = useTheme();
   const { width } = useWindowDimensions();
@@ -52,7 +53,7 @@ export function LibraryPage() {
         }
         
         // Only refresh if page is focused
-        if (!navigation.isFocused()) {
+        if (!isFocused) {
           return;
         }
         
@@ -72,7 +73,7 @@ export function LibraryPage() {
         clearInterval(refreshInterval);
       }
     };
-  }, [navigation, fetchSongs]); // Include navigation to check focus state
+  }, [isFocused, fetchSongs]); // Include isFocused to check focus state
 
   const filteredSongs = songs
     .filter(song => {
