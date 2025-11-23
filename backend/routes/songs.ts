@@ -10,7 +10,7 @@ const router = express.Router();
 const upload = multer({ dest: 'uploads/' });
 
 // Get all songs with optional filters
-router.get('/', (req: Request, res: Response) => {
+router.get('/', async (req: Request, res: Response) => {
   try {
     const db = getDb();
     const { search, type, key, tags } = req.query;
@@ -45,7 +45,7 @@ router.get('/', (req: Request, res: Response) => {
 
     query += ' ORDER BY updatedAt DESC';
 
-    const songs = db.prepare(query).all(...params) as Song[];
+    const songs = await db.prepare(query).all(...params) as Song[];
     
     // Parse JSON tags and artists
     const parsedSongs = songs.map(song => {
@@ -86,10 +86,10 @@ router.get('/', (req: Request, res: Response) => {
 });
 
 // Get song by ID
-router.get('/:id', (req: Request, res: Response) => {
+router.get('/:id', async (req: Request, res: Response) => {
   try {
     const db = getDb();
-    const song = db.prepare('SELECT * FROM songs WHERE id = ?').get(req.params.id) as Song | undefined;
+    const song = await db.prepare('SELECT * FROM songs WHERE id = ?').get(req.params.id) as Song | undefined;
 
     if (!song) {
       return res.status(404).json({ error: 'Song not found' });
@@ -124,7 +124,7 @@ router.get('/:id', (req: Request, res: Response) => {
 });
 
 // Create new song
-router.post('/', (req: Request, res: Response) => {
+router.post('/', async (req: Request, res: Response) => {
   try {
     const db = getDb();
     const songData: CreateSongDto = req.body;
@@ -211,7 +211,7 @@ router.post('/', (req: Request, res: Response) => {
         updatedAt: song.updatedAt,
       });
       
-      const result = stmt.run(
+      const runResult = stmt.run(
         song.id,
         song.title,
         artistJson, // Store artists as JSON array
@@ -223,6 +223,9 @@ router.post('/', (req: Request, res: Response) => {
         song.createdAt,
         song.updatedAt
       );
+      
+      // Handle both Promise and synchronous results
+      const result = runResult instanceof Promise ? await runResult : runResult;
       
       console.log('Backend: Insert result:', {
         changes: result.changes,
@@ -277,7 +280,7 @@ router.post('/', (req: Request, res: Response) => {
 });
 
 // Update song
-router.put('/:id', (req: Request, res: Response) => {
+router.put('/:id', async (req: Request, res: Response) => {
   try {
     const db = getDb();
     const updates: UpdateSongDto = req.body;
@@ -291,7 +294,7 @@ router.put('/:id', (req: Request, res: Response) => {
       tags: updates.tags,
     });
 
-    const existing = db.prepare('SELECT * FROM songs WHERE id = ?').get(songId) as Song | undefined;
+    const existing = await db.prepare('SELECT * FROM songs WHERE id = ?').get(songId) as Song | undefined;
     if (!existing) {
       console.log('Backend: Song not found:', songId);
       return res.status(404).json({ error: 'Song not found' });
@@ -328,7 +331,7 @@ router.put('/:id', (req: Request, res: Response) => {
     });
     console.log('Backend: Artist value:', updated.artist, 'Type:', typeof updated.artist);
 
-    db.prepare(`
+    await db.prepare(`
       UPDATE songs
       SET title = ?, artist = ?, type = ?, key = ?, tags = ?, extractedText = ?, updatedAt = ?
       WHERE id = ?
@@ -352,7 +355,7 @@ router.put('/:id', (req: Request, res: Response) => {
 });
 
 // Delete song
-router.delete('/:id', (req: Request, res: Response) => {
+router.delete('/:id', async (req: Request, res: Response) => {
   try {
     const db = getDb();
     const songId = req.params.id;
@@ -360,7 +363,7 @@ router.delete('/:id', (req: Request, res: Response) => {
     console.log('Backend: Attempting to delete song:', songId);
     
     // First check if song exists
-    const existing = db.prepare('SELECT id, title FROM songs WHERE id = ?').get(songId) as { id: string; title: string } | undefined;
+    const existing = await db.prepare('SELECT id, title FROM songs WHERE id = ?').get(songId) as { id: string; title: string } | undefined;
     
     if (!existing) {
       console.log('Backend: Song not found:', songId);
@@ -370,7 +373,8 @@ router.delete('/:id', (req: Request, res: Response) => {
     console.log('Backend: Found song to delete:', existing.title);
     
     // Delete the song
-    const result = db.prepare('DELETE FROM songs WHERE id = ?').run(songId);
+    const deleteResult = db.prepare('DELETE FROM songs WHERE id = ?').run(songId);
+    const result = deleteResult instanceof Promise ? await deleteResult : deleteResult;
     
     console.log('Backend: Delete result - changes:', result.changes);
 
