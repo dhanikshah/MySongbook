@@ -67,8 +67,20 @@ app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Initialize database
-initDatabase();
+// Initialize database (async) - wait for it before starting server
+let dbInitialized = false;
+
+initDatabase()
+  .then(() => {
+    dbInitialized = true;
+    console.log('✅ Database initialization complete');
+  })
+  .catch((error) => {
+    console.error('❌ Failed to initialize database:', error);
+    console.error('Error details:', error.message);
+    console.error('Stack:', error.stack);
+    process.exit(1);
+  });
 
 // API Info endpoint
 app.get('/api/info', (req, res) => {
