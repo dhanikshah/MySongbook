@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput, Alert, Platform, useWindowDimensions, StatusBar } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput, Alert, Platform, useWindowDimensions, StatusBar, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRoute, useNavigation, useIsFocused } from '@react-navigation/native';
+import { useRoute, useNavigation } from '@react-navigation/native';
 import { songApi } from '../../app/services/api';
 import { Song } from '../../app/types/Song';
 import { transposeSongText, CHORD_PATTERN } from '../../app/utils/chordTranspose';
@@ -13,7 +13,6 @@ const MUSICAL_KEYS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#'
 export function SongViewerPage() {
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
-  const isFocused = useIsFocused();
   const { songId } = route.params;
   const { updateSong, deleteSong } = useSongs();
   const { theme } = useTheme();
@@ -40,83 +39,23 @@ export function SongViewerPage() {
   const [editingTags, setEditingTags] = useState<string[]>([]);
   const [editingText, setEditingText] = useState('');
   const [saving, setSaving] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     loadSong();
   }, [songId]);
 
-  // Periodically check if song still exists (to detect deletions from other devices)
-  // Only check when page is focused and on mobile (web can use manual refresh)
-  useEffect(() => {
-    if (!song || loading) return;
-
-    // Only enable auto-check on mobile devices (not web)
-    if (Platform.OS === 'web') {
-      return; // Disable auto-check on web to save costs
+  // Handle pull-to-refresh
+  const onRefresh = React.useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await loadSong();
+    } catch (error) {
+      console.error('SongViewerPage: Error refreshing song:', error);
+    } finally {
+      setRefreshing(false);
     }
-
-    let checkInterval: NodeJS.Timeout | null = null;
-    let initialTimeout: NodeJS.Timeout | null = null;
-
-    // Wait 60 seconds before first check, then continue every 60 seconds
-    initialTimeout = setTimeout(() => {
-      if (!isFocused) {
-        return;
-      }
-
-      // First check after 60 seconds
-      (async () => {
-        try {
-          const currentSong = await songApi.getById(songId);
-          setSong(currentSong);
-        } catch (error: any) {
-          if (error?.response?.status === 404 || error?.message?.includes('404')) {
-            console.log('SongViewerPage: Song was deleted, navigating to Library...');
-            setError('Song not found. It may have been deleted.');
-            setSong(null);
-            setTimeout(() => {
-              navigation.navigate('Library');
-            }, 1000);
-          }
-        }
-      })();
-
-      // Then set up interval for subsequent checks
-      checkInterval = setInterval(async () => {
-        // Only check if page is focused
-        if (!isFocused) {
-          return;
-        }
-
-        try {
-          // Try to fetch the song to see if it still exists
-          const currentSong = await songApi.getById(songId);
-          // If we get here, song still exists - update it in case it was modified
-          setSong(currentSong);
-        } catch (error: any) {
-          // Song was deleted (404) or other error
-          if (error?.response?.status === 404 || error?.message?.includes('404')) {
-            console.log('SongViewerPage: Song was deleted, navigating to Library...');
-            setError('Song not found. It may have been deleted.');
-            setSong(null);
-            // Auto-navigate back to Library after 1 second
-            setTimeout(() => {
-              navigation.navigate('Library');
-            }, 1000);
-          }
-        }
-      }, 60000); // Check every 60 seconds after the first one
-    }, 60000); // Wait 60 seconds before first check
-
-    return () => {
-      if (checkInterval) {
-        clearInterval(checkInterval);
-      }
-      if (initialTimeout) {
-        clearTimeout(initialTimeout);
-      }
-    };
-  }, [song, songId, loading, isFocused, navigation]);
+  }, [songId]);
 
   const loadSong = async () => {
     try {
@@ -779,6 +718,16 @@ export function SongViewerPage() {
           scrollPositionRef.current = event.nativeEvent.contentOffset.y;
         }}
         scrollEventThrottle={16}
+        refreshControl={
+          Platform.OS !== 'web' ? (
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={theme.primary}
+              colors={[theme.primary]}
+            />
+          ) : undefined
+        }
       >
         {renderTextWithChords(getTransposedText())}
       </ScrollView>

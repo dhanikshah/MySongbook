@@ -1,14 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, Platform, useWindowDimensions, SafeAreaView, StatusBar } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, Platform, useWindowDimensions, SafeAreaView, StatusBar, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation, useFocusEffect, useIsFocused } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { SearchBar } from '../components/SearchBar';
 import { useSongs } from '../../app/hooks/useSongs';
 import { useTheme } from '../../app/context/ThemeContext';
 
 export function LibraryPage() {
   const navigation = useNavigation<any>();
-  const isFocused = useIsFocused();
   const { songs, loading, fetchSongs, deleteSong } = useSongs();
   const { theme } = useTheme();
   const { width } = useWindowDimensions();
@@ -18,6 +17,7 @@ export function LibraryPage() {
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Refresh songs when page comes into focus (e.g., after deleting/editing a song)
   // This handles both initial load and when returning to the page
@@ -30,60 +30,17 @@ export function LibraryPage() {
     }, [fetchSongs])
   );
 
-  // Auto-refresh periodically to detect deletions/additions from other devices
-  // Only refresh when page is focused and on mobile (web can use manual refresh)
-  useEffect(() => {
-    let refreshInterval: NodeJS.Timeout | null = null;
-    let initialTimeout: NodeJS.Timeout | null = null;
-    let isMounted = true;
-
-    // Only enable auto-refresh on mobile devices (not web)
-    if (Platform.OS === 'web') {
-      return; // Disable auto-refresh on web to save costs
+  // Handle pull-to-refresh
+  const onRefresh = React.useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await fetchSongs();
+    } catch (error) {
+      console.error('LibraryPage: Error refreshing songs:', error);
+    } finally {
+      setRefreshing(false);
     }
-
-    // Wait 60 seconds before first auto-refresh, then continue every 60 seconds
-    initialTimeout = setTimeout(() => {
-      if (!isMounted || !isFocused) {
-        return;
-      }
-
-      // First refresh after 60 seconds
-      console.log('LibraryPage: Auto-refreshing songs (silent, first refresh)...');
-      fetchSongs(undefined, true).catch(error => {
-        console.error('LibraryPage: Error auto-refreshing songs:', error);
-      });
-
-      // Then set up interval for subsequent refreshes
-      refreshInterval = setInterval(() => {
-        if (!isMounted) {
-          if (refreshInterval) clearInterval(refreshInterval);
-          return;
-        }
-        
-        // Only refresh if page is focused
-        if (!isFocused) {
-          return;
-        }
-        
-        console.log('LibraryPage: Auto-refreshing songs (silent)...');
-        // Use silent mode to avoid showing loading spinner during auto-refresh
-        fetchSongs(undefined, true).catch(error => {
-          console.error('LibraryPage: Error auto-refreshing songs:', error);
-        });
-      }, 60000); // Refresh every 60 seconds after the first one
-    }, 60000); // Wait 60 seconds before first refresh
-
-    return () => {
-      isMounted = false;
-      if (refreshInterval) {
-        clearInterval(refreshInterval);
-      }
-      if (initialTimeout) {
-        clearTimeout(initialTimeout);
-      }
-    };
-  }, [isFocused, fetchSongs]); // Re-run when focus changes to restart the timer
+  }, [fetchSongs]);
 
   const filteredSongs = songs
     .filter(song => {
@@ -253,7 +210,19 @@ export function LibraryPage() {
       ) : filteredSongs.length === 0 ? (
         <Text style={[styles.emptyText, { color: theme.textSecondary }]}>No songs found</Text>
       ) : (
-        <ScrollView style={styles.scrollView}>
+        <ScrollView 
+          style={styles.scrollView}
+          refreshControl={
+            Platform.OS !== 'web' ? (
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={theme.primary}
+                colors={[theme.primary]}
+              />
+            ) : undefined
+          }
+        >
           {filteredSongs.map((song) => (
             <TouchableOpacity
               key={song.id}
