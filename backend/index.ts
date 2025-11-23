@@ -74,9 +74,15 @@ initDatabase();
 app.get('/api/info', (req, res) => {
   res.json({
     name: 'My Songbook API',
-    version: '1.0.1',
+    version: '1.0.2',
     status: 'running',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    endpoints: {
+      health: '/health',
+      songs: '/api/songs',
+      ocr: '/api/ocr',
+      info: '/api/info'
+    }
   });
 });
 
@@ -104,9 +110,14 @@ app.post('/api/ocr', upload.single('file'), async (req, res) => {
 app.get('/health', (req, res) => {
   res.json({ 
     status: 'ok',
-    version: '1.0.1',
+    version: '1.0.2',
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
+    environment: process.env.NODE_ENV || 'development',
+    uptime: process.uptime(),
+    memory: {
+      used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+      total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024)
+    }
   });
 });
 
