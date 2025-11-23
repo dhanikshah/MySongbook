@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, Platform, useWindowDimensions, StatusBar } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSongs } from '../../app/hooks/useSongs';
@@ -15,6 +15,13 @@ try {
   console.log('expo-sharing not available');
 }
 
+interface BackupFile {
+  name: string;
+  uri: string;
+  size?: number;
+  modificationTime?: number;
+}
+
 export function SettingsPage() {
   const { songs, fetchSongs } = useSongs();
   const { theme } = useTheme();
@@ -23,6 +30,9 @@ export function SettingsPage() {
   const insets = useSafeAreaInsets();
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [backupFiles, setBackupFiles] = useState<BackupFile[]>([]);
+  const [loadingBackups, setLoadingBackups] = useState(false);
+  const [deletingFile, setDeletingFile] = useState<string | null>(null);
 
   const handleExportSongs = async () => {
     // Generate filename
@@ -100,6 +110,9 @@ export function SettingsPage() {
         const fileUri = FileSystem.documentDirectory + fileName;
         await FileSystem.writeAsStringAsync(fileUri, jsonString);
         
+        // Refresh backup files list after export
+        await loadBackupFiles();
+        
         if (Sharing && await Sharing.isAvailableAsync()) {
           await Sharing.shareAsync(fileUri);
         } else {
@@ -116,6 +129,127 @@ export function SettingsPage() {
       }
     } finally {
       setExporting(false);
+    }
+  };
+
+  // Load backup files list
+  const loadBackupFiles = async () => {
+    if (Platform.OS === 'web') {
+      // On web, we can't list files from Downloads folder
+      setBackupFiles([]);
+      return;
+    }
+
+    setLoadingBackups(true);
+    try {
+      const files = await FileSystem.readDirectoryAsync(FileSystem.documentDirectory || '');
+      const backupFilesList: BackupFile[] = [];
+      
+      for (const fileName of files) {
+        if (fileName.startsWith('songbook-export-') && fileName.endsWith('.json')) {
+          const fileUri = FileSystem.documentDirectory + fileName;
+          try {
+            const fileInfo = await FileSystem.getInfoAsync(fileUri);
+            if (fileInfo.exists && fileInfo.size !== undefined) {
+              backupFilesList.push({
+                name: fileName,
+                uri: fileUri,
+                size: fileInfo.size,
+                modificationTime: fileInfo.modificationTime,
+              });
+            }
+          } catch (error) {
+            console.error(`Error getting info for ${fileName}:`, error);
+            // Still add the file even if we can't get info
+            backupFilesList.push({
+              name: fileName,
+              uri: fileUri,
+            });
+          }
+        }
+      }
+      
+      // Sort by modification time (newest first)
+      backupFilesList.sort((a, b) => {
+        const timeA = a.modificationTime || 0;
+        const timeB = b.modificationTime || 0;
+        return timeB - timeA;
+      });
+      
+      setBackupFiles(backupFilesList);
+    } catch (error: any) {
+      console.error('Error loading backup files:', error);
+      // Don't show error to user, just set empty list
+      setBackupFiles([]);
+    } finally {
+      setLoadingBackups(false);
+    }
+  };
+
+  // Load backup files on mount and after export
+  useEffect(() => {
+    loadBackupFiles();
+  }, []);
+
+  // Format file size
+  const formatFileSize = (bytes?: number): string => {
+    if (!bytes) return 'Unknown size';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  // Format date
+  const formatDate = (timestamp?: number): string => {
+    if (!timestamp) return 'Unknown date';
+    const date = new Date(timestamp);
+    return date.toLocaleString();
+  };
+
+  // Delete backup file
+  const handleDeleteBackup = async (file: BackupFile) => {
+    const confirmMessage = `Delete backup file?\n\nFile: ${file.name}\nSize: ${formatFileSize(file.size)}\nDate: ${formatDate(file.modificationTime)}\n\nThis action cannot be undone.`;
+
+    const confirmed = Platform.OS === 'web' && typeof window !== 'undefined' && window.confirm
+      ? window.confirm(confirmMessage)
+      : await new Promise<boolean>((resolve) => {
+          Alert.alert(
+            'Delete Backup File',
+            confirmMessage,
+            [
+              { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+              { text: 'Delete', style: 'destructive', onPress: () => resolve(true) },
+            ]
+          );
+        });
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingFile(file.name);
+    try {
+      await FileSystem.deleteAsync(file.uri, { idempotent: true });
+      
+      // Refresh backup files list
+      await loadBackupFiles();
+      
+      const successMessage = `Backup file deleted successfully:\n${file.name}`;
+      if (Platform.OS === 'web' && typeof window !== 'undefined' && window.alert) {
+        window.alert(successMessage);
+      } else {
+        Alert.alert('Success', successMessage);
+      }
+    } catch (error: any) {
+      console.error('Error deleting backup file:', error);
+      const errorMessage = error?.message || 'Failed to delete backup file';
+      if (Platform.OS === 'web' && typeof window !== 'undefined' && window.alert) {
+        window.alert(`Error: ${errorMessage}`);
+      } else {
+        Alert.alert('Error', errorMessage);
+      }
+    } finally {
+      setDeletingFile(null);
     }
   };
 
@@ -269,6 +403,63 @@ export function SettingsPage() {
           Import songs from a JSON file. The file should be exported from this app. Duplicate songs (same ID) will be skipped.
         </Text>
       </View>
+
+      {/* Backup Files List */}
+      {Platform.OS !== 'web' && (
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Backup Files ({backupFiles.length})</Text>
+            <TouchableOpacity
+              onPress={loadBackupFiles}
+              disabled={loadingBackups}
+              style={[styles.refreshButton, { backgroundColor: theme.surface, borderColor: theme.border }]}
+            >
+              <Text style={[styles.refreshButtonText, { color: theme.text }]}>
+                {loadingBackups ? 'Loading...' : 'Refresh'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+          
+          {loadingBackups ? (
+            <Text style={[styles.sectionDescription, { color: theme.textSecondary }]}>Loading backup files...</Text>
+          ) : backupFiles.length === 0 ? (
+            <Text style={[styles.sectionDescription, { color: theme.textSecondary }]}>
+              No backup files found. Export songs to create a backup file.
+            </Text>
+          ) : (
+            <View style={styles.backupFilesList}>
+              {backupFiles.map((file) => (
+                <View key={file.name} style={[styles.backupFileItem, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                  <View style={styles.backupFileInfo}>
+                    <Text style={[styles.backupFileName, { color: theme.text }]} numberOfLines={1}>
+                      {file.name}
+                    </Text>
+                    <Text style={[styles.backupFileDetails, { color: theme.textSecondary }]}>
+                      {formatFileSize(file.size)} • {formatDate(file.modificationTime)}
+                    </Text>
+                    <Text style={[styles.backupFilePath, { color: theme.textSecondary }]} numberOfLines={1}>
+                      {file.uri}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={[
+                      styles.deleteBackupButton,
+                      { backgroundColor: theme.error, borderColor: theme.error },
+                      deletingFile === file.name && styles.buttonDisabled
+                    ]}
+                    onPress={() => handleDeleteBackup(file)}
+                    disabled={deletingFile === file.name}
+                  >
+                    <Text style={[styles.deleteBackupButtonText, { color: theme.errorText }]}>
+                      {deletingFile === file.name ? 'Deleting...' : 'Delete'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+      )}
       </ScrollView>
     </View>
   );
@@ -337,6 +528,64 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 4,
     fontStyle: 'italic',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  refreshButton: {
+    padding: 6,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  refreshButtonText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  backupFilesList: {
+    gap: 8,
+  },
+  backupFileItem: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  backupFileInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  backupFileName: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  backupFileDetails: {
+    fontSize: 12,
+    marginBottom: 2,
+  },
+  backupFilePath: {
+    fontSize: 10,
+    fontFamily: Platform.OS === 'web' ? 'monospace' : 'monospace',
+    marginTop: 4,
+  },
+  deleteBackupButton: {
+    padding: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    borderWidth: 1,
+    minWidth: 70,
+    alignItems: 'center',
+  },
+  deleteBackupButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
 });
 
