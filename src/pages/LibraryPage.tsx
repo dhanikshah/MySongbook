@@ -19,6 +19,7 @@ export function LibraryPage() {
   const [deleting, setDeleting] = useState(false);
 
   // Refresh songs when page comes into focus (e.g., after deleting/editing a song)
+  // This handles both initial load and when returning to the page
   useFocusEffect(
     React.useCallback(() => {
       console.log('LibraryPage: Page focused, fetching songs...');
@@ -28,19 +29,16 @@ export function LibraryPage() {
     }, [fetchSongs])
   );
 
-  // Also refresh on mount to ensure we have the latest data
-  useEffect(() => {
-    console.log('LibraryPage: Component mounted, fetching songs...');
-    fetchSongs().catch(error => {
-      console.error('LibraryPage: Error fetching songs on mount:', error);
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // fetchSongs is stable from useCallback, so we can safely omit it
-
-  // Auto-refresh every 5 seconds to detect deletions/additions from other devices
+  // Auto-refresh periodically to detect deletions/additions from other devices
+  // Only refresh when page is focused and on mobile (web can use manual refresh)
   useEffect(() => {
     let refreshInterval: NodeJS.Timeout | null = null;
     let isMounted = true;
+
+    // Only enable auto-refresh on mobile devices (not web)
+    if (Platform.OS === 'web') {
+      return; // Disable auto-refresh on web to save costs
+    }
 
     const startRefresh = () => {
       if (refreshInterval) {
@@ -53,12 +51,17 @@ export function LibraryPage() {
           return;
         }
         
+        // Only refresh if page is focused
+        if (!navigation.isFocused()) {
+          return;
+        }
+        
         console.log('LibraryPage: Auto-refreshing songs (silent)...');
         // Use silent mode to avoid showing loading spinner during auto-refresh
         fetchSongs(undefined, true).catch(error => {
           console.error('LibraryPage: Error auto-refreshing songs:', error);
         });
-      }, 5000); // Refresh every 5 seconds
+      }, 60000); // Refresh every 60 seconds (reduced from 5 seconds to save costs)
     };
 
     startRefresh();
@@ -69,7 +72,7 @@ export function LibraryPage() {
         clearInterval(refreshInterval);
       }
     };
-  }, []); // Empty deps - fetchSongs is stable from useCallback
+  }, [navigation, fetchSongs]); // Include navigation to check focus state
 
   const filteredSongs = songs
     .filter(song => {

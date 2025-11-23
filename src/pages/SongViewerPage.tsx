@@ -45,10 +45,21 @@ export function SongViewerPage() {
   }, [songId]);
 
   // Periodically check if song still exists (to detect deletions from other devices)
+  // Only check when page is focused and on mobile (web can use manual refresh)
   useEffect(() => {
     if (!song || loading) return;
 
+    // Only enable auto-check on mobile devices (not web)
+    if (Platform.OS === 'web') {
+      return; // Disable auto-check on web to save costs
+    }
+
     const checkInterval = setInterval(async () => {
+      // Only check if page is focused
+      if (!navigation.isFocused()) {
+        return;
+      }
+
       try {
         // Try to fetch the song to see if it still exists
         const currentSong = await songApi.getById(songId);
@@ -66,7 +77,7 @@ export function SongViewerPage() {
           }, 1000);
         }
       }
-    }, 5000); // Check every 5 seconds
+    }, 60000); // Check every 60 seconds (reduced from 5 seconds to save costs)
 
     return () => {
       clearInterval(checkInterval);

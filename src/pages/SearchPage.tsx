@@ -31,10 +31,16 @@ export function SearchPage() {
     }, [fetchSongs])
   );
 
-  // Auto-refresh every 5 seconds to detect deletions/additions from other devices
+  // Auto-refresh periodically to detect deletions/additions from other devices
+  // Only refresh when page is focused and on mobile (web can use manual refresh)
   useEffect(() => {
     let refreshInterval: NodeJS.Timeout | null = null;
     let isMounted = true;
+
+    // Only enable auto-refresh on mobile devices (not web)
+    if (Platform.OS === 'web') {
+      return; // Disable auto-refresh on web to save costs
+    }
 
     const startRefresh = () => {
       if (refreshInterval) {
@@ -47,12 +53,17 @@ export function SearchPage() {
           return;
         }
         
+        // Only refresh if page is focused
+        if (!navigation.isFocused()) {
+          return;
+        }
+        
         console.log('SearchPage: Auto-refreshing songs (silent)...');
         // Use silent mode to avoid showing loading spinner during auto-refresh
         fetchSongs(undefined, true).catch(error => {
           console.error('SearchPage: Error auto-refreshing songs:', error);
         });
-      }, 5000); // Refresh every 5 seconds
+      }, 60000); // Refresh every 60 seconds (reduced from 5 seconds to save costs)
     };
 
     startRefresh();
@@ -63,7 +74,7 @@ export function SearchPage() {
         clearInterval(refreshInterval);
       }
     };
-  }, []); // Empty deps - fetchSongs is stable from useCallback
+  }, [navigation, fetchSongs]); // Include navigation to check focus state
 
   const allTags = Array.from(new Set(songs.flatMap(s => s.tags || []))).sort();
   const allArtists = Array.from(new Set(
