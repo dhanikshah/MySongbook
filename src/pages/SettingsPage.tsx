@@ -285,30 +285,35 @@ export function SettingsPage() {
         return;
       }
 
-      // On Android, use the share dialog with instructions to save to Downloads
-      // Due to Android's scoped storage, we can't directly write to Downloads without user permission
-      // The best approach is to use the share dialog and guide the user
+      // On Android, show instructions for saving to Downloads
+      // The share dialog shows different apps based on what's installed
       const isSharingAvailable = await Sharing.isAvailableAsync();
       if (!isSharingAvailable) {
-        Alert.alert('Sharing Not Available', 'Sharing is not available on this device.');
+        Alert.alert(
+          'Sharing Not Available',
+          `File location:\n${file.uri}\n\nYou can access this file using a file manager app or ADB.`
+        );
         return;
       }
 
-      // Show instructions first
-      const showInstructions = Platform.OS === 'web' && typeof window !== 'undefined' && window.confirm
-        ? window.confirm('To save to Downloads:\n\n1. In the share dialog, select "Save to Files" or "Files"\n2. Navigate to Downloads folder\n3. Tap "Save"\n\nClick OK to open the share dialog.')
+      // Show comprehensive instructions
+      const instructions = `To save to Downloads, look for these apps in the share dialog:\n\n• "Files" or "Files by Google"\n• "My Files" (Samsung)\n• "File Manager"\n• "Solid Explorer"\n• "Total Commander"\n• Any file manager app\n\nThen:\n1. Select the file manager app\n2. Navigate to Downloads folder\n3. Tap "Save" or "Copy"\n\nIf you don't see a file manager, you can:\n• Install "Files by Google" from Play Store\n• Use the Share button and select email/messaging to send to yourself\n• Access the file directly at:\n${file.uri}`;
+
+      const showShareDialog = Platform.OS === 'web' && typeof window !== 'undefined' && window.confirm
+        ? window.confirm(instructions + '\n\nClick OK to open the share dialog.')
         : await new Promise<boolean>((resolve) => {
             Alert.alert(
               'Save to Downloads',
-              'To save to Downloads:\n\n1. In the share dialog, select "Save to Files" or "Files"\n2. Navigate to Downloads folder\n3. Tap "Save"\n\nClick OK to open the share dialog.',
+              instructions,
               [
                 { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
                 { text: 'Open Share Dialog', onPress: () => resolve(true) },
-              ]
+              ],
+              { cancelable: true }
             );
           });
 
-      if (!showInstructions) return;
+      if (!showShareDialog) return;
 
       // Open share dialog
       let shareUri = file.uri;
@@ -318,14 +323,14 @@ export function SettingsPage() {
 
       await Sharing.shareAsync(shareUri, {
         mimeType: 'application/json',
-        dialogTitle: 'Save to Downloads',
+        dialogTitle: 'Save to Downloads - Select File Manager',
         UTI: 'public.json',
       });
     } catch (error: any) {
       console.error('Error saving to Downloads:', error);
       Alert.alert(
         'Error',
-        `Could not open share dialog: ${error?.message || 'Unknown error'}\n\nYou can use the Share button instead.`
+        `Could not open share dialog: ${error?.message || 'Unknown error'}\n\nFile location: ${file.uri}\n\nYou can access this file using a file manager app.`
       );
     }
   };
