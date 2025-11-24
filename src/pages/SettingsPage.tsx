@@ -357,13 +357,6 @@ export function SettingsPage() {
       // On Android, try multiple URI formats to find one that works with file managers
       let shareUri = file.uri;
       
-      // Verify the file is readable before sharing
-      const fileInfo = await FileSystem.getInfoAsync(file.uri);
-      if (!fileInfo.exists) {
-        Alert.alert('Error', 'File does not exist or is not accessible');
-        return;
-      }
-      
       console.log('File info for sharing:', {
         exists: fileInfo.exists,
         size: fileInfo.size,
