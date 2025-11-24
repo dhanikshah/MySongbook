@@ -111,6 +111,13 @@ export function SettingsPage() {
       } else {
         // On mobile, save the file to backup directory first
         const backupDir = getBackupDirectory();
+        
+        // Ensure the directory exists
+        const dirInfo = await FileSystem.getInfoAsync(backupDir);
+        if (!dirInfo.exists) {
+          await FileSystem.makeDirectoryAsync(backupDir, { intermediates: true });
+        }
+        
         const tempFileUri = backupDir + fileName;
         
         await FileSystem.writeAsStringAsync(tempFileUri, jsonString);
@@ -130,11 +137,13 @@ export function SettingsPage() {
           try {
             const isSharingAvailable = await Sharing.isAvailableAsync();
             if (isSharingAvailable) {
-              // Prepare file URI for sharing
+              // For Android, use the file URI directly without file:// prefix
+              // expo-sharing will handle the URI format correctly
+              // Using the raw URI (without file://) sometimes works better with file managers
               let shareUri = tempFileUri;
-              if (!shareUri.startsWith('file://') && !shareUri.startsWith('content://')) {
-                shareUri = 'file://' + shareUri;
-              }
+              
+              // Try without file:// prefix first - some file managers prefer this
+              // expo-sharing should handle the URI format automatically
               
               // Show instructions and open share dialog
               const showShare = await new Promise<boolean>((resolve) => {
@@ -150,30 +159,56 @@ export function SettingsPage() {
               
               if (showShare) {
                 // Try sharing with generic MIME type first - ensures "Files by Google" appears
+                // Try multiple URI formats to find one that works
+                let shareSucceeded = false;
+                
+                // Try 1: Raw URI (let expo-sharing handle it)
                 try {
                   await Sharing.shareAsync(shareUri, {
                     mimeType: '*/*', // Generic MIME type - ensures file managers appear
                     dialogTitle: 'Save to Downloads',
                     UTI: 'public.json',
                   });
+                  shareSucceeded = true;
                 } catch (shareError1: any) {
-                  console.log('Generic MIME type failed, trying application/octet-stream:', shareError1);
+                  console.log('Raw URI failed, trying with file:// prefix:', shareError1);
+                  
+                  // Try 2: With file:// prefix
                   try {
-                    // Fallback to application/octet-stream
-                    await Sharing.shareAsync(shareUri, {
-                      mimeType: 'application/octet-stream', // Also compatible with file managers
+                    const fileUri = shareUri.startsWith('file://') ? shareUri : 'file://' + shareUri;
+                    await Sharing.shareAsync(fileUri, {
+                      mimeType: '*/*',
                       dialogTitle: 'Save to Downloads',
                       UTI: 'public.json',
                     });
+                    shareSucceeded = true;
                   } catch (shareError2: any) {
-                    // Fallback to application/json if both fail
-                    console.log('application/octet-stream failed, trying application/json:', shareError2);
-                    await Sharing.shareAsync(shareUri, {
-                      mimeType: 'application/json',
-                      dialogTitle: 'Save to Downloads',
-                      UTI: 'public.json',
-                    });
+                    console.log('file:// URI failed, trying application/octet-stream:', shareError2);
+                    
+                    // Try 3: With application/octet-stream
+                    try {
+                      await Sharing.shareAsync(shareUri, {
+                        mimeType: 'application/octet-stream',
+                        dialogTitle: 'Save to Downloads',
+                        UTI: 'public.json',
+                      });
+                      shareSucceeded = true;
+                    } catch (shareError3: any) {
+                      console.log('application/octet-stream failed, trying application/json:', shareError3);
+                      
+                      // Try 4: With application/json
+                      await Sharing.shareAsync(shareUri, {
+                        mimeType: 'application/json',
+                        dialogTitle: 'Save to Downloads',
+                        UTI: 'public.json',
+                      });
+                      shareSucceeded = true;
+                    }
                   }
+                }
+                
+                if (!shareSucceeded) {
+                  throw new Error('All sharing methods failed');
                 }
               } else {
                 Alert.alert(
@@ -319,70 +354,89 @@ export function SettingsPage() {
         return;
       }
       
-      // On Android, ensure the file URI is properly formatted for sharing
-      // Files by Google needs the file to be accessible, so we ensure proper URI format
+      // On Android, try multiple URI formats to find one that works with file managers
       let shareUri = file.uri;
       
-      // Ensure file:// prefix is present for Android
-      if (Platform.OS === 'android') {
-        if (!shareUri.startsWith('file://') && !shareUri.startsWith('content://')) {
-          shareUri = 'file://' + shareUri;
-        }
-        
-        // Verify the file is readable before sharing
-        const fileInfo = await FileSystem.getInfoAsync(file.uri);
-        if (!fileInfo.exists) {
-          Alert.alert('Error', 'File does not exist or is not accessible');
-          return;
-        }
-        
-        console.log('File info for sharing:', {
-          exists: fileInfo.exists,
-          size: fileInfo.size,
-          uri: shareUri,
-          isDirectory: fileInfo.isDirectory
-        });
+      // Verify the file is readable before sharing
+      const fileInfo = await FileSystem.getInfoAsync(file.uri);
+      if (!fileInfo.exists) {
+        Alert.alert('Error', 'File does not exist or is not accessible');
+        return;
       }
       
-      // Try to share the file with generic MIME type for better file manager compatibility
+      console.log('File info for sharing:', {
+        exists: fileInfo.exists,
+        size: fileInfo.size,
+        uri: file.uri,
+        isDirectory: fileInfo.isDirectory
+      });
+      
+      // Try to share the file with multiple URI formats and MIME types
       console.log('Opening share dialog for:', shareUri);
+      let shareSucceeded = false;
+      
+      // Try 1: Raw URI with */* MIME type
       try {
-        // Use generic MIME type first - this ensures "Files by Google" and other file managers appear
         await Sharing.shareAsync(shareUri, {
           mimeType: '*/*', // Generic MIME type - ensures file managers appear in share dialog
           dialogTitle: 'Share Backup File',
           UTI: 'public.json',
         });
-        console.log('Share dialog opened successfully with */*');
+        console.log('Share dialog opened successfully with raw URI and */*');
+        shareSucceeded = true;
       } catch (shareError1: any) {
-        console.log('Generic MIME type failed, trying application/octet-stream:', shareError1);
+        console.log('Raw URI with */* failed, trying file:// prefix:', shareError1);
+        
+        // Try 2: With file:// prefix
         try {
-          // Fallback to application/octet-stream - also compatible with file managers
-          await Sharing.shareAsync(shareUri, {
-            mimeType: 'application/octet-stream', // Also compatible with file managers
+          const fileUri = shareUri.startsWith('file://') ? shareUri : 'file://' + shareUri;
+          await Sharing.shareAsync(fileUri, {
+            mimeType: '*/*',
             dialogTitle: 'Share Backup File',
             UTI: 'public.json',
           });
-          console.log('Share dialog opened successfully with application/octet-stream');
+          console.log('Share dialog opened successfully with file:// URI');
+          shareSucceeded = true;
         } catch (shareError2: any) {
-          console.log('application/octet-stream failed, trying application/json:', shareError2);
+          console.log('file:// URI failed, trying application/octet-stream:', shareError2);
+          
+          // Try 3: With application/octet-stream
           try {
-            // Fallback to application/json
             await Sharing.shareAsync(shareUri, {
-              mimeType: 'application/json',
+              mimeType: 'application/octet-stream',
               dialogTitle: 'Share Backup File',
               UTI: 'public.json',
             });
-            console.log('Share dialog opened successfully with application/json');
+            console.log('Share dialog opened successfully with application/octet-stream');
+            shareSucceeded = true;
           } catch (shareError3: any) {
-            console.log('All MIME types failed, trying without MIME type:', shareError3);
-            // Final fallback - try without MIME type
-            await Sharing.shareAsync(shareUri, {
-              dialogTitle: 'Share Backup File',
-              UTI: 'public.json',
-            });
+            console.log('application/octet-stream failed, trying application/json:', shareError3);
+            
+            // Try 4: With application/json
+            try {
+              await Sharing.shareAsync(shareUri, {
+                mimeType: 'application/json',
+                dialogTitle: 'Share Backup File',
+                UTI: 'public.json',
+              });
+              console.log('Share dialog opened successfully with application/json');
+              shareSucceeded = true;
+            } catch (shareError4: any) {
+              console.log('All methods failed, trying without MIME type:', shareError4);
+              
+              // Final fallback - try without MIME type
+              await Sharing.shareAsync(shareUri, {
+                dialogTitle: 'Share Backup File',
+                UTI: 'public.json',
+              });
+              shareSucceeded = true;
+            }
           }
         }
+      }
+      
+      if (!shareSucceeded) {
+        throw new Error('All sharing methods failed');
       }
     } catch (error: any) {
       console.error('Error sharing backup file:', error);
