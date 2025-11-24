@@ -125,64 +125,54 @@ export function SettingsPage() {
         
         console.log('Backup file created:', tempFileUri, 'Size:', tempFileInfo.size);
         
-        // On Android, try to save directly to Downloads folder
+        // On Android, use share dialog to save to Downloads
+        // Due to Android 10+ scoped storage, we can't directly write to Downloads
+        // The best approach is to use the share dialog and let user save via file manager
         if (Platform.OS === 'android') {
           try {
-            // Try common Downloads paths
-            const downloadsPaths = [
-              '/storage/emulated/0/Download/',
-              '/storage/emulated/0/Downloads/',
-              '/sdcard/Download/',
-              '/sdcard/Downloads/',
-            ];
-            
-            let savedToDownloads = false;
-            for (const downloadsPath of downloadsPaths) {
-              try {
-                const downloadsFileUri = downloadsPath + fileName;
-                
-                // Check if Downloads directory exists
-                const downloadsDirInfo = await FileSystem.getInfoAsync(downloadsPath);
-                if (downloadsDirInfo.exists && downloadsDirInfo.isDirectory) {
-                  // Copy file to Downloads
-                  await FileSystem.copyAsync({
-                    from: tempFileUri,
-                    to: downloadsFileUri,
-                  });
-                  
-                  // Verify copy succeeded
-                  const downloadsFileInfo = await FileSystem.getInfoAsync(downloadsFileUri);
-                  if (downloadsFileInfo.exists) {
-                    console.log('File saved to Downloads:', downloadsFileUri);
-                    savedToDownloads = true;
-                    
-                    Alert.alert(
-                      'Export Complete',
-                      `Exported ${songs.length} song${songs.length !== 1 ? 's' : ''} successfully!\n\nFile saved to Downloads:\n${fileName}\n\nLocation: ${downloadsFileUri}`
-                    );
-                    break;
-                  }
-                }
-              } catch (pathError) {
-                console.log(`Could not save to ${downloadsPath}:`, pathError);
-                continue;
+            const isSharingAvailable = await Sharing.isAvailableAsync();
+            if (isSharingAvailable) {
+              // Prepare file URI for sharing
+              let shareUri = tempFileUri;
+              if (!shareUri.startsWith('file://') && !shareUri.startsWith('content://')) {
+                shareUri = 'file://' + shareUri;
               }
-            }
-            
-            if (!savedToDownloads) {
-              // Fallback: save to backup directory and show instructions
-              console.log('Could not save to Downloads, keeping file in backup directory');
+              
+              // Show instructions and open share dialog
+              const showShare = await new Promise<boolean>((resolve) => {
+                Alert.alert(
+                  'Export Complete - Save to Downloads',
+                  `File exported successfully!\n\nTo save to Downloads:\n1. Tap "Open Share Dialog"\n2. Select "Files" or your file manager\n3. Navigate to Downloads folder\n4. Tap "Save"\n\nOr use the Share button in backup files list later.`,
+                  [
+                    { text: 'Skip', style: 'cancel', onPress: () => resolve(false) },
+                    { text: 'Open Share Dialog', onPress: () => resolve(true) },
+                  ]
+                );
+              });
+              
+              if (showShare) {
+                await Sharing.shareAsync(shareUri, {
+                  mimeType: 'application/json',
+                  dialogTitle: 'Save to Downloads',
+                  UTI: 'public.json',
+                });
+              } else {
+                Alert.alert(
+                  'Export Complete',
+                  `Exported ${songs.length} song${songs.length !== 1 ? 's' : ''} successfully!\n\nFile saved to backup directory.\n\nYou can use the Share button in the backup files list to save to Downloads later.`
+                );
+              }
+            } else {
               Alert.alert(
                 'Export Complete',
-                `Exported ${songs.length} song${songs.length !== 1 ? 's' : ''} successfully!\n\nFile saved to:\n${tempFileUri}\n\nTo save to Downloads, use the Share button in the backup files list.`
+                `Exported ${songs.length} song${songs.length !== 1 ? 's' : ''} successfully!\n\nFile saved to:\n${tempFileUri}\n\nYou can use the Share button in the backup files list to save to Downloads.`
               );
             }
-          } catch (downloadsError: any) {
-            console.error('Error saving to Downloads:', downloadsError);
-            // Fallback: file is already in backup directory
+          } catch (shareError: any) {
+            console.error('Error sharing file:', shareError);
             Alert.alert(
               'Export Complete',
-              `Exported ${songs.length} song${songs.length !== 1 ? 's' : ''} successfully!\n\nFile saved to:\n${tempFileUri}\n\nTo save to Downloads, use the Share button in the backup files list.`
+              `Exported ${songs.length} song${songs.length !== 1 ? 's' : ''} successfully!\n\nFile saved to:\n${tempFileUri}\n\nYou can use the Share button in the backup files list to save to Downloads.`
             );
           }
         } else {
@@ -402,6 +392,26 @@ export function SettingsPage() {
     setImporting(true);
     try {
       console.log('Opening document picker for import');
+      
+      // Show instructions for Android users
+      if (Platform.OS === 'android') {
+        const showInstructions = await new Promise<boolean>((resolve) => {
+          Alert.alert(
+            'Import Songs',
+            'To import a backup file:\n\n1. Tap "Open File Picker"\n2. Navigate to Downloads folder (or where you saved the backup file)\n3. Select the backup JSON file\n4. Tap "Import"\n\nNote: If you don\'t see your backup file, make sure it\'s a .json file and try navigating to the Downloads folder.',
+            [
+              { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+              { text: 'Open File Picker', onPress: () => resolve(true) },
+            ]
+          );
+        });
+        
+        if (!showInstructions) {
+          setImporting(false);
+          return;
+        }
+      }
+      
       const result = await DocumentPicker.getDocumentAsync({
         type: ['application/json', 'text/json', '*/*'], // Allow all file types as fallback
         copyToCacheDirectory: true,
