@@ -268,6 +268,68 @@ export function SettingsPage() {
     return date.toLocaleString();
   };
 
+  // Save backup file to Downloads folder (Android)
+  const handleSaveToDownloads = async (file: BackupFile) => {
+    if (Platform.OS === 'web') {
+      Alert.alert('Info', 'On web, use the Share button to download the file.');
+      return;
+    }
+
+    try {
+      console.log('Attempting to save file to Downloads:', file.uri);
+      
+      // Verify file exists
+      const fileInfo = await FileSystem.getInfoAsync(file.uri);
+      if (!fileInfo.exists) {
+        Alert.alert('Error', 'File does not exist');
+        return;
+      }
+
+      // On Android, use the share dialog with instructions to save to Downloads
+      // Due to Android's scoped storage, we can't directly write to Downloads without user permission
+      // The best approach is to use the share dialog and guide the user
+      const isSharingAvailable = await Sharing.isAvailableAsync();
+      if (!isSharingAvailable) {
+        Alert.alert('Sharing Not Available', 'Sharing is not available on this device.');
+        return;
+      }
+
+      // Show instructions first
+      const showInstructions = Platform.OS === 'web' && typeof window !== 'undefined' && window.confirm
+        ? window.confirm('To save to Downloads:\n\n1. In the share dialog, select "Save to Files" or "Files"\n2. Navigate to Downloads folder\n3. Tap "Save"\n\nClick OK to open the share dialog.')
+        : await new Promise<boolean>((resolve) => {
+            Alert.alert(
+              'Save to Downloads',
+              'To save to Downloads:\n\n1. In the share dialog, select "Save to Files" or "Files"\n2. Navigate to Downloads folder\n3. Tap "Save"\n\nClick OK to open the share dialog.',
+              [
+                { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+                { text: 'Open Share Dialog', onPress: () => resolve(true) },
+              ]
+            );
+          });
+
+      if (!showInstructions) return;
+
+      // Open share dialog
+      let shareUri = file.uri;
+      if (Platform.OS === 'android' && !shareUri.startsWith('file://') && !shareUri.startsWith('content://')) {
+        shareUri = 'file://' + shareUri;
+      }
+
+      await Sharing.shareAsync(shareUri, {
+        mimeType: 'application/json',
+        dialogTitle: 'Save to Downloads',
+        UTI: 'public.json',
+      });
+    } catch (error: any) {
+      console.error('Error saving to Downloads:', error);
+      Alert.alert(
+        'Error',
+        `Could not open share dialog: ${error?.message || 'Unknown error'}\n\nYou can use the Share button instead.`
+      );
+    }
+  };
+
   // Share backup file
   const handleShareBackup = async (file: BackupFile) => {
     try {
@@ -594,6 +656,19 @@ export function SettingsPage() {
                     </Text>
                   </View>
                   <View style={styles.backupFileActions}>
+                    {Platform.OS !== 'web' && (
+                      <TouchableOpacity
+                        style={[
+                          styles.saveToDownloadsButton,
+                          { backgroundColor: '#10b981', borderColor: '#10b981' }
+                        ]}
+                        onPress={() => handleSaveToDownloads(file)}
+                      >
+                        <Text style={[styles.saveToDownloadsButtonText, { color: '#ffffff' }]}>
+                          Save to Downloads
+                        </Text>
+                      </TouchableOpacity>
+                    )}
                     <TouchableOpacity
                       style={[
                         styles.shareBackupButton,
@@ -730,6 +805,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
     alignItems: 'center',
+  },
+  saveToDownloadsButton: {
+    padding: Platform.OS === 'web' ? 8 : 10,
+    paddingHorizontal: Platform.OS === 'web' ? 12 : 14,
+    borderRadius: 6,
+    borderWidth: 1,
+    minWidth: 120,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  saveToDownloadsButtonText: {
+    fontSize: Platform.OS === 'web' ? 12 : 13,
+    fontWeight: '600',
+    color: '#ffffff',
   },
   shareBackupButton: {
     padding: Platform.OS === 'web' ? 8 : 10,
