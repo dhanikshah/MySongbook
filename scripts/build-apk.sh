@@ -39,6 +39,8 @@ cat > "$XML_DIR/file_paths.xml" << 'FILEPATHS'
     <cache-path name="cache" path="." />
     <external-files-path name="external_files" path="." />
     <external-cache-path name="external_cache" path="." />
+    <!-- Add external-path for better compatibility with file managers like Files by Google -->
+    <external-path name="external" path="." />
 </paths>
 FILEPATHS
 
