@@ -149,26 +149,25 @@ export function SettingsPage() {
               });
               
               if (showShare) {
-                // Try sharing with application/octet-stream first - most compatible with file managers
-                // This MIME type is better recognized by "Files by Google" and other file managers
+                // Try sharing with generic MIME type first - ensures "Files by Google" appears
                 try {
                   await Sharing.shareAsync(shareUri, {
-                    mimeType: 'application/octet-stream', // Most compatible for file managers
+                    mimeType: '*/*', // Generic MIME type - ensures file managers appear
                     dialogTitle: 'Save to Downloads',
                     UTI: 'public.json',
                   });
                 } catch (shareError1: any) {
-                  console.log('application/octet-stream failed, trying */*:', shareError1);
+                  console.log('Generic MIME type failed, trying application/octet-stream:', shareError1);
                   try {
-                    // Fallback to generic MIME type
+                    // Fallback to application/octet-stream
                     await Sharing.shareAsync(shareUri, {
-                      mimeType: '*/*', // Generic MIME type - works with most file managers
+                      mimeType: 'application/octet-stream', // Also compatible with file managers
                       dialogTitle: 'Save to Downloads',
                       UTI: 'public.json',
                     });
                   } catch (shareError2: any) {
-                    // Fallback to application/json if generic type fails
-                    console.log('Generic MIME type failed, trying application/json:', shareError2);
+                    // Fallback to application/json if both fail
+                    console.log('application/octet-stream failed, trying application/json:', shareError2);
                     await Sharing.shareAsync(shareUri, {
                       mimeType: 'application/json',
                       dialogTitle: 'Save to Downloads',
@@ -348,26 +347,25 @@ export function SettingsPage() {
       // Try to share the file with generic MIME type for better file manager compatibility
       console.log('Opening share dialog for:', shareUri);
       try {
-        // Use generic MIME type first - works with most file managers including "Files by Google"
-        // Also try 'application/octet-stream' as it's more compatible with file managers
+        // Use generic MIME type first - this ensures "Files by Google" and other file managers appear
         await Sharing.shareAsync(shareUri, {
-          mimeType: 'application/octet-stream', // More compatible than '*/*' for file managers
+          mimeType: '*/*', // Generic MIME type - ensures file managers appear in share dialog
           dialogTitle: 'Share Backup File',
           UTI: 'public.json',
         });
-        console.log('Share dialog opened successfully');
+        console.log('Share dialog opened successfully with */*');
       } catch (shareError1: any) {
-        console.log('application/octet-stream failed, trying */*:', shareError1);
+        console.log('Generic MIME type failed, trying application/octet-stream:', shareError1);
         try {
-          // Fallback to generic MIME type
+          // Fallback to application/octet-stream - also compatible with file managers
           await Sharing.shareAsync(shareUri, {
-            mimeType: '*/*', // Generic MIME type - ensures file managers appear in share dialog
+            mimeType: 'application/octet-stream', // Also compatible with file managers
             dialogTitle: 'Share Backup File',
             UTI: 'public.json',
           });
-          console.log('Share dialog opened successfully with */*');
+          console.log('Share dialog opened successfully with application/octet-stream');
         } catch (shareError2: any) {
-          console.log('Generic MIME type failed, trying application/json:', shareError2);
+          console.log('application/octet-stream failed, trying application/json:', shareError2);
           try {
             // Fallback to application/json
             await Sharing.shareAsync(shareUri, {
