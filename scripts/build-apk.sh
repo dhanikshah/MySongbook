@@ -23,6 +23,44 @@ unset FORCE_COLOR
 echo -e "${YELLOW}Running prebuild...${NC}"
 npx expo prebuild --platform android
 
+# Add FileProvider configuration for file sharing
+echo -e "${YELLOW}Configuring FileProvider for file sharing...${NC}"
+MANIFEST_FILE="android/app/src/main/AndroidManifest.xml"
+XML_DIR="android/app/src/main/res/xml"
+
+# Create xml directory if it doesn't exist
+mkdir -p "$XML_DIR"
+
+# Create file_paths.xml
+cat > "$XML_DIR/file_paths.xml" << 'FILEPATHS'
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <files-path name="files" path="." />
+    <cache-path name="cache" path="." />
+    <external-files-path name="external_files" path="." />
+    <external-cache-path name="external_cache" path="." />
+</paths>
+FILEPATHS
+
+# Add FileProvider to AndroidManifest if not already present
+if ! grep -q "FileProvider" "$MANIFEST_FILE"; then
+  # Insert FileProvider before closing </application> tag
+  sed -i '' '/<\/application>/i\
+    <provider\
+      android:name="androidx.core.content.FileProvider"\
+      android:authorities="${applicationId}.fileprovider"\
+      android:exported="false"\
+      android:grantUriPermissions="true">\
+      <meta-data\
+        android:name="android.support.FILE_PROVIDER_PATHS"\
+        android:resource="@xml/file_paths" />\
+    </provider>
+' "$MANIFEST_FILE"
+  echo -e "${GREEN}FileProvider added to AndroidManifest${NC}"
+else
+  echo -e "${GREEN}FileProvider already configured${NC}"
+fi
+
 # Build APK and filter warnings
 echo -e "${YELLOW}Building release APK...${NC}"
 cd android
