@@ -111,69 +111,90 @@ export function SettingsPage() {
           window.alert(`Songs exported successfully!\n\nFile: ${fileName}\nLocation: Downloads folder\nSongs: ${songs.length}\n\nYou can use this file to backup or restore your library.`);
         }
       } else {
-        // On mobile, save the file to backup directory
+        // On mobile, save the file to backup directory first
         const backupDir = getBackupDirectory();
-        const fileUri = backupDir + fileName;
+        const tempFileUri = backupDir + fileName;
         
-        await FileSystem.writeAsStringAsync(fileUri, jsonString);
+        await FileSystem.writeAsStringAsync(tempFileUri, jsonString);
         
         // Verify file was created
-        const fileInfo = await FileSystem.getInfoAsync(fileUri);
-        if (!fileInfo.exists) {
+        const tempFileInfo = await FileSystem.getInfoAsync(tempFileUri);
+        if (!tempFileInfo.exists) {
           throw new Error('Failed to create backup file');
         }
         
-        console.log('Backup file created:', fileUri, 'Size:', fileInfo.size);
+        console.log('Backup file created:', tempFileUri, 'Size:', tempFileInfo.size);
+        
+        // On Android, try to save directly to Downloads folder
+        if (Platform.OS === 'android') {
+          try {
+            // Try common Downloads paths
+            const downloadsPaths = [
+              '/storage/emulated/0/Download/',
+              '/storage/emulated/0/Downloads/',
+              '/sdcard/Download/',
+              '/sdcard/Downloads/',
+            ];
+            
+            let savedToDownloads = false;
+            for (const downloadsPath of downloadsPaths) {
+              try {
+                const downloadsFileUri = downloadsPath + fileName;
+                
+                // Check if Downloads directory exists
+                const downloadsDirInfo = await FileSystem.getInfoAsync(downloadsPath);
+                if (downloadsDirInfo.exists && downloadsDirInfo.isDirectory) {
+                  // Copy file to Downloads
+                  await FileSystem.copyAsync({
+                    from: tempFileUri,
+                    to: downloadsFileUri,
+                  });
+                  
+                  // Verify copy succeeded
+                  const downloadsFileInfo = await FileSystem.getInfoAsync(downloadsFileUri);
+                  if (downloadsFileInfo.exists) {
+                    console.log('File saved to Downloads:', downloadsFileUri);
+                    savedToDownloads = true;
+                    
+                    Alert.alert(
+                      'Export Complete',
+                      `Exported ${songs.length} song${songs.length !== 1 ? 's' : ''} successfully!\n\nFile saved to Downloads:\n${fileName}\n\nLocation: ${downloadsFileUri}`
+                    );
+                    break;
+                  }
+                }
+              } catch (pathError) {
+                console.log(`Could not save to ${downloadsPath}:`, pathError);
+                continue;
+              }
+            }
+            
+            if (!savedToDownloads) {
+              // Fallback: save to backup directory and show instructions
+              console.log('Could not save to Downloads, keeping file in backup directory');
+              Alert.alert(
+                'Export Complete',
+                `Exported ${songs.length} song${songs.length !== 1 ? 's' : ''} successfully!\n\nFile saved to:\n${tempFileUri}\n\nTo save to Downloads, use the Share button in the backup files list.`
+              );
+            }
+          } catch (downloadsError: any) {
+            console.error('Error saving to Downloads:', downloadsError);
+            // Fallback: file is already in backup directory
+            Alert.alert(
+              'Export Complete',
+              `Exported ${songs.length} song${songs.length !== 1 ? 's' : ''} successfully!\n\nFile saved to:\n${tempFileUri}\n\nTo save to Downloads, use the Share button in the backup files list.`
+            );
+          }
+        } else {
+          // iOS - file is already saved to documentDirectory
+          Alert.alert(
+            'Export Complete',
+            `Exported ${songs.length} song${songs.length !== 1 ? 's' : ''} successfully!\n\nFile saved to:\n${tempFileUri}\n\nYou can use this file to backup or restore your library.`
+          );
+        }
         
         // Refresh backup files list after export
         await loadBackupFiles();
-        
-        // Use Sharing API to let user save/share the file (can save to Downloads)
-        // On Android, we need to ensure the file is accessible for sharing
-        try {
-          const isSharingAvailable = await Sharing.isAvailableAsync();
-          console.log('Sharing available:', isSharingAvailable);
-          
-          if (isSharingAvailable && Platform.OS !== 'web') {
-            console.log('Opening share dialog for file:', fileUri);
-            
-            // Verify file exists and is readable
-            const shareFileInfo = await FileSystem.getInfoAsync(fileUri);
-            if (!shareFileInfo.exists) {
-              throw new Error('File does not exist for sharing');
-            }
-            
-            console.log('File info for sharing:', {
-              exists: shareFileInfo.exists,
-              size: shareFileInfo.size,
-              uri: fileUri
-            });
-            
-            // Share the file - this will open Android's share dialog
-            await Sharing.shareAsync(fileUri, {
-              mimeType: 'application/json',
-              dialogTitle: 'Save Backup File',
-              UTI: 'public.json',
-            });
-            console.log('Share dialog completed');
-          } else {
-            console.warn('Sharing not available, showing alert instead');
-            throw new Error('Sharing not available');
-          }
-        } catch (sharingError: any) {
-          console.error('Sharing error:', sharingError);
-          console.error('Sharing error details:', {
-            message: sharingError?.message,
-            code: sharingError?.code,
-            stack: sharingError?.stack
-          });
-          
-          // Fallback to alert if sharing fails
-          const message = Platform.OS === 'android'
-            ? `Exported ${songs.length} song${songs.length !== 1 ? 's' : ''} successfully!\n\nFile saved to:\n${fileUri}\n\nTo access:\n1. Use the "Share" button in the backup files list below\n2. Or use ADB: adb backup -noapk com.mysongbook.app`
-            : `Exported ${songs.length} song${songs.length !== 1 ? 's' : ''} successfully!\n\nFile saved to:\n${fileUri}\n\nYou can use this file to backup or restore your library.`;
-          Alert.alert('Export Complete', message);
-        }
       }
     } catch (error: any) {
       console.error('Export error:', error);
@@ -266,73 +287,6 @@ export function SettingsPage() {
     if (!timestamp) return 'Unknown date';
     const date = new Date(timestamp);
     return date.toLocaleString();
-  };
-
-  // Save backup file to Downloads folder (Android)
-  const handleSaveToDownloads = async (file: BackupFile) => {
-    if (Platform.OS === 'web') {
-      Alert.alert('Info', 'On web, use the Share button to download the file.');
-      return;
-    }
-
-    try {
-      console.log('Attempting to save file to Downloads:', file.uri);
-      
-      // Verify file exists
-      const fileInfo = await FileSystem.getInfoAsync(file.uri);
-      if (!fileInfo.exists) {
-        Alert.alert('Error', 'File does not exist');
-        return;
-      }
-
-      // On Android, show instructions for saving to Downloads
-      // The share dialog shows different apps based on what's installed
-      const isSharingAvailable = await Sharing.isAvailableAsync();
-      if (!isSharingAvailable) {
-        Alert.alert(
-          'Sharing Not Available',
-          `File location:\n${file.uri}\n\nYou can access this file using a file manager app or ADB.`
-        );
-        return;
-      }
-
-      // Show comprehensive instructions
-      const instructions = `To save to Downloads, look for these apps in the share dialog:\n\n• "Files" or "Files by Google"\n• "My Files" (Samsung)\n• "File Manager"\n• "Solid Explorer"\n• "Total Commander"\n• Any file manager app\n\nThen:\n1. Select the file manager app\n2. Navigate to Downloads folder\n3. Tap "Save" or "Copy"\n\nIf you don't see a file manager, you can:\n• Install "Files by Google" from Play Store\n• Use the Share button and select email/messaging to send to yourself\n• Access the file directly at:\n${file.uri}`;
-
-      const showShareDialog = Platform.OS === 'web' && typeof window !== 'undefined' && window.confirm
-        ? window.confirm(instructions + '\n\nClick OK to open the share dialog.')
-        : await new Promise<boolean>((resolve) => {
-            Alert.alert(
-              'Save to Downloads',
-              instructions,
-              [
-                { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-                { text: 'Open Share Dialog', onPress: () => resolve(true) },
-              ],
-              { cancelable: true }
-            );
-          });
-
-      if (!showShareDialog) return;
-
-      // Open share dialog
-      let shareUri = file.uri;
-      if (Platform.OS === 'android' && !shareUri.startsWith('file://') && !shareUri.startsWith('content://')) {
-        shareUri = 'file://' + shareUri;
-      }
-
-      await Sharing.shareAsync(shareUri, {
-        mimeType: 'application/json',
-        dialogTitle: 'Save to Downloads - Select File Manager',
-        UTI: 'public.json',
-      });
-    } catch (error: any) {
-      console.error('Error saving to Downloads:', error);
-      Alert.alert(
-        'Error',
-        `Could not open share dialog: ${error?.message || 'Unknown error'}\n\nFile location: ${file.uri}\n\nYou can access this file using a file manager app.`
-      );
-    }
   };
 
   // Share backup file
@@ -661,19 +615,6 @@ export function SettingsPage() {
                     </Text>
                   </View>
                   <View style={styles.backupFileActions}>
-                    {Platform.OS !== 'web' && (
-                      <TouchableOpacity
-                        style={[
-                          styles.saveToDownloadsButton,
-                          { backgroundColor: '#10b981', borderColor: '#10b981' }
-                        ]}
-                        onPress={() => handleSaveToDownloads(file)}
-                      >
-                        <Text style={[styles.saveToDownloadsButtonText, { color: '#ffffff' }]}>
-                          Save to Downloads
-                        </Text>
-                      </TouchableOpacity>
-                    )}
                     <TouchableOpacity
                       style={[
                         styles.shareBackupButton,
@@ -810,20 +751,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
     alignItems: 'center',
-  },
-  saveToDownloadsButton: {
-    padding: Platform.OS === 'web' ? 8 : 10,
-    paddingHorizontal: Platform.OS === 'web' ? 12 : 14,
-    borderRadius: 6,
-    borderWidth: 1,
-    minWidth: 120,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  saveToDownloadsButtonText: {
-    fontSize: Platform.OS === 'web' ? 12 : 13,
-    fontWeight: '600',
-    color: '#ffffff',
   },
   shareBackupButton: {
     padding: Platform.OS === 'web' ? 8 : 10,
