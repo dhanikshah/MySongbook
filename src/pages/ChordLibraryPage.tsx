@@ -63,46 +63,173 @@ export function ChordLibraryPage() {
     return { chords, sortedRoots };
   }, []);
 
-  // Get display name for root
+  // Get display name for root with proper casing
   const getRootDisplayName = (root: string): string => {
     const displayNames: { [key: string]: string } = {
+      'C': 'C',
       'Csharp': 'C#',
+      'Db': 'Db',
+      'D': 'D',
       'Dsharp': 'D#',
+      'Eb': 'Eb',
+      'E': 'E',
+      'F': 'F',
       'Fsharp': 'F#',
+      'Gb': 'Gb',
+      'G': 'G',
       'Gsharp': 'G#',
+      'Ab': 'Ab',
+      'A': 'A',
       'Asharp': 'A#',
+      'Bb': 'Bb',
+      'B': 'B',
     };
-    return displayNames[root] || root;
+    // Return mapped name or uppercase the first character
+    const mapped = displayNames[root];
+    if (mapped) return mapped;
+    // Default: uppercase first char, keep rest as-is
+    return root.charAt(0).toUpperCase() + root.slice(1);
   };
 
-  // Get display name for suffix
+  // Get display name for suffix with proper casing and formatting
   const getSuffixDisplayName = (suffix: string): string => {
+    // Comprehensive mapping of all suffixes to their display format
     const displayNames: { [key: string]: string } = {
+      // Major chords (no suffix)
       'major': '',
+      
+      // Minor chords
       'minor': 'm',
+      
+      // Diminished
       'dim': 'dim',
       'dim7': 'dim7',
+      'diminished': 'dim',
+      'diminished7': 'dim7',
+      
+      // Suspended
       'sus2': 'sus2',
       'sus4': 'sus4',
       '7sus4': '7sus4',
+      
+      // Dominant 7th
       '7': '7',
+      '7b5': '7b5',
+      '7b9': '7b9',
+      '7#9': '7#9',
+      '7sg': '7sg',
+      
+      // Major 7th
       'maj7': 'maj7',
+      'major7': 'maj7',
+      'maj7#5': 'maj7#5',
+      'maj7b5': 'maj7b5',
+      
+      // Minor 7th
       'm7': 'm7',
+      'minor7': 'm7',
+      'm7b5': 'm7b5',
+      
+      // Minor-major 7th
+      'mmaj7': 'mmaj7',
+      'mmaj7b5': 'mmaj7b5',
+      
+      // 9th chords
+      '9': '9',
       'maj9': 'maj9',
+      'major9': 'maj9',
       'm9': 'm9',
-      'add9': 'add9',
-      'aug': 'aug',
+      'minor9': 'm9',
+      'mmaj9': 'mmaj9',
+      '9#11': '9#11',
+      '9b5': '9b5',
+      'aug9': 'aug9',
+      
+      // 11th chords
+      '11': '11',
+      'maj11': 'maj11',
+      'm11': 'm11',
+      'mmaj11': 'mmaj11',
+      
+      // 13th chords
+      '13': '13',
+      'maj13': 'maj13',
+      
+      // 6th chords
       '6': '6',
       'm6': 'm6',
+      'minor6': 'm6',
+      '69': '69',
+      'm69': 'm69',
+      
+      // Add chords
+      'add9': 'add9',
+      'madd9': 'madd9',
+      
+      // Augmented
+      'aug': 'aug',
+      'augmented': 'aug',
+      'aug7': 'aug7',
+      
+      // Other
+      'alt': 'alt',
+      '5': '5',
+      
+      // Slash chords (bass notes) - keep as-is
+      '/A': '/A',
+      '/B': '/B',
+      '/Bb': '/Bb',
+      '/C': '/C',
+      '/C#': '/C#',
+      '/D': '/D',
+      '/D#': '/D#',
+      '/E': '/E',
+      '/F': '/F',
+      '/F#': '/F#',
+      '/G': '/G',
+      '/G#': '/G#',
+      'm/A': 'm/A',
+      'm/B': 'm/B',
+      'm/C': 'm/C',
+      'm/C#': 'm/C#',
+      'm/D': 'm/D',
+      'm/D#': 'm/D#',
+      'm/E': 'm/E',
+      'm/F': 'm/F',
+      'm/F#': 'm/F#',
+      'm/G': 'm/G',
+      'm/G#': 'm/G#',
     };
-    return displayNames[suffix] || suffix;
+    
+    // Check exact match first
+    if (displayNames[suffix]) {
+      return displayNames[suffix];
+    }
+    
+    // Handle numeric-only suffixes
+    if (/^\d+$/.test(suffix)) {
+      return suffix;
+    }
+    
+    // For unknown suffixes, return as-is (lowercase for consistency)
+    return suffix.toLowerCase();
   };
 
-  // Get chord display name
+  // Get chord display name with proper casing
   const getChordDisplayName = (root: string, suffix: string): string => {
     const rootName = getRootDisplayName(root);
+    // Ensure root is uppercase (C, D, E, F, G, A, B, C#, etc.)
+    const rootUpper = rootName.charAt(0).toUpperCase() + rootName.slice(1);
     const suffixName = getSuffixDisplayName(suffix);
-    return suffixName ? `${rootName}${suffixName}` : rootName;
+    
+    // For major chords (empty suffix), just return root
+    if (!suffixName) {
+      return rootUpper;
+    }
+    
+    // Combine root and suffix
+    // Minor chords should have lowercase 'm', others follow the suffix format
+    return rootUpper + suffixName;
   };
 
   // Filter chords by selected root
@@ -110,23 +237,6 @@ export function ChordLibraryPage() {
     ? allChords.chords[selectedRoot] || []
     : [];
 
-  // Group chords by suffix for better organization
-  const groupedChords = useMemo(() => {
-    const groups: { [suffix: string]: ChordInfo[] } = {};
-    filteredChords.forEach((chord) => {
-      if (!groups[chord.suffix]) {
-        groups[chord.suffix] = [];
-      }
-      groups[chord.suffix].push(chord);
-    });
-    return groups;
-  }, [filteredChords]);
-
-  // Common chord suffixes in order of popularity
-  const commonSuffixes = [
-    'major', 'minor', '7', 'maj7', 'm7', 'sus4', 'sus2', 
-    'add9', '9', 'm9', 'maj9', '6', 'm6', 'dim', 'dim7', 'aug'
-  ];
 
   // Get all voicings for a chord
   const getAllVoicings = (root: string, suffix: string): any[] => {
@@ -213,7 +323,6 @@ export function ChordLibraryPage() {
           <View style={styles.rootGrid}>
             {allChords.sortedRoots.map((root) => {
               const isSelected = selectedRoot === root;
-              const chordCount = allChords.chords[root]?.length || 0;
               return (
                 <TouchableOpacity
                   key={root}
@@ -232,12 +341,6 @@ export function ChordLibraryPage() {
                   ]}>
                     {getRootDisplayName(root)}
                   </Text>
-                  <Text style={[
-                    styles.rootButtonCount,
-                    { color: isSelected ? theme.primaryText : theme.textSecondary }
-                  ]}>
-                    {chordCount}
-                  </Text>
                 </TouchableOpacity>
               );
             })}
@@ -251,85 +354,29 @@ export function ChordLibraryPage() {
               {getRootDisplayName(selectedRoot)} Chords
             </Text>
             
-            {/* Group by suffix */}
-            {commonSuffixes.map((suffix) => {
-              const chords = groupedChords[suffix] || [];
-              if (chords.length === 0) return null;
-
-              return (
-                <View key={suffix} style={styles.suffixGroup}>
-                  <Text style={[styles.suffixTitle, { color: theme.textSecondary }]}>
-                    {getSuffixDisplayName(suffix) || 'Major'}
-                  </Text>
-                  <View style={styles.chordGrid}>
-                    {chords.map((chord, idx) => {
-                      const chordName = getChordDisplayName(chord.key, chord.suffix);
-                      const positionCount = chord.positions?.length || 0;
-                      return (
-                        <TouchableOpacity
-                          key={`${chord.key}-${chord.suffix}-${idx}`}
-                          onPress={() => handleChordClick(chord.key, chord.suffix)}
-                          style={[
-                            styles.chordButton,
-                            {
-                              backgroundColor: theme.surface,
-                              borderColor: theme.border,
-                            }
-                          ]}
-                        >
-                          <Text style={[styles.chordButtonText, { color: theme.text }]}>
-                            {chordName}
-                          </Text>
-                          <Text style={[styles.chordButtonCount, { color: theme.textSecondary }]}>
-                            {positionCount} {positionCount === 1 ? 'shape' : 'shapes'}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                </View>
-              );
-            })}
-
-            {/* Other suffixes */}
-            {Object.keys(groupedChords)
-              .filter(suffix => !commonSuffixes.includes(suffix))
-              .map((suffix) => {
-                const chords = groupedChords[suffix];
+            {/* Display all chord variations in a grid, same format as root notes */}
+            <View style={styles.rootGrid}>
+              {filteredChords.map((chord, idx) => {
+                const chordName = getChordDisplayName(chord.key, chord.suffix);
                 return (
-                  <View key={suffix} style={styles.suffixGroup}>
-                    <Text style={[styles.suffixTitle, { color: theme.textSecondary }]}>
-                      {suffix}
+                  <TouchableOpacity
+                    key={`${chord.key}-${chord.suffix}-${idx}`}
+                    onPress={() => handleChordClick(chord.key, chord.suffix)}
+                    style={[
+                      styles.rootButton,
+                      {
+                        backgroundColor: theme.surface,
+                        borderColor: theme.border,
+                      }
+                    ]}
+                  >
+                    <Text style={[styles.rootButtonText, { color: theme.text }]}>
+                      {chordName}
                     </Text>
-                    <View style={styles.chordGrid}>
-                      {chords.map((chord, idx) => {
-                        const chordName = getChordDisplayName(chord.key, chord.suffix);
-                        const positionCount = chord.positions?.length || 0;
-                        return (
-                          <TouchableOpacity
-                            key={`${chord.key}-${chord.suffix}-${idx}`}
-                            onPress={() => handleChordClick(chord.key, chord.suffix)}
-                            style={[
-                              styles.chordButton,
-                              {
-                                backgroundColor: theme.surface,
-                                borderColor: theme.border,
-                              }
-                            ]}
-                          >
-                            <Text style={[styles.chordButtonText, { color: theme.text }]}>
-                              {chordName}
-                            </Text>
-                            <Text style={[styles.chordButtonCount, { color: theme.textSecondary }]}>
-                              {positionCount} {positionCount === 1 ? 'shape' : 'shapes'}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-                  </View>
+                  </TouchableOpacity>
                 );
               })}
+            </View>
           </View>
         )}
       </ScrollView>
@@ -431,40 +478,6 @@ const styles = StyleSheet.create({
   rootButtonText: {
     fontSize: 16,
     fontWeight: 'bold',
-  },
-  rootButtonCount: {
-    fontSize: 11,
-    marginTop: 2,
-  },
-  suffixGroup: {
-    marginBottom: 20,
-  },
-  suffixTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 8,
-    textTransform: 'uppercase',
-  },
-  chordGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  chordButton: {
-    padding: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    minWidth: 80,
-    alignItems: 'center',
-  },
-  chordButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  chordButtonCount: {
-    fontSize: 11,
-    marginTop: 2,
   },
   allVoicingsContainer: {
     position: 'absolute',
