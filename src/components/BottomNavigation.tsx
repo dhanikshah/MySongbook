@@ -12,6 +12,7 @@ export function BottomNavigation() {
     { id: 'Library', label: 'Library', icon: '📚' },
     { id: 'AddSong', label: 'Add', icon: '➕' },
     { id: 'Search', label: 'Search', icon: '🔍' },
+    { id: 'ChordLibrary', label: 'Chords', icon: '🎸' },
     { id: 'Settings', label: 'Settings', icon: '⚙️' },
   ];
 

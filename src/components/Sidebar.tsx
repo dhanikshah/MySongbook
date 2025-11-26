@@ -17,6 +17,7 @@ export function Sidebar({ activeRoute }: SidebarProps) {
     { id: 'Library', label: 'Library' },
     { id: 'AddSong', label: 'Add Song' },
     { id: 'Search', label: 'Search' },
+    { id: 'ChordLibrary', label: 'Chord Library' },
     { id: 'Settings', label: 'Settings' },
   ];
 

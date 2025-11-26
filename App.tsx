@@ -11,6 +11,7 @@ import { LibraryPage } from './src/pages/LibraryPage';
 import { AddSongPage } from './src/pages/AddSongPage';
 import { SongViewerPage } from './src/pages/SongViewerPage';
 import { SearchPage } from './src/pages/SearchPage';
+import { ChordLibraryPage } from './src/pages/ChordLibraryPage';
 import { SettingsPage } from './src/pages/SettingsPage';
 
 // Import global CSS for web
@@ -64,6 +65,7 @@ function AppContent() {
         AddSong: '/add-song',
         SongViewer: '/song/:songId',
         Search: '/search',
+        ChordLibrary: '/chord-library',
         Settings: '/settings',
       },
     },
@@ -105,6 +107,10 @@ function AppContent() {
           <Stack.Screen
             name="Search"
             component={withAppWrapper(SearchPage)}
+          />
+          <Stack.Screen
+            name="ChordLibrary"
+            component={withAppWrapper(ChordLibraryPage)}
           />
           <Stack.Screen
             name="Settings"
