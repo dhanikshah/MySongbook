@@ -7,6 +7,7 @@ import { Song } from '../../app/types/Song';
 import { transposeSongText, CHORD_PATTERN } from '../../app/utils/chordTranspose';
 import { useSongs } from '../../app/hooks/useSongs';
 import { useTheme } from '../../app/context/ThemeContext';
+import { ChordDiagram } from '../../app/components/ChordDiagram';
 
 const MUSICAL_KEYS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B', 'Cm', 'C#m', 'Dm', 'D#m', 'Em', 'Fm', 'F#m', 'Gm', 'G#m', 'Am', 'A#m', 'Bm'];
 
@@ -40,6 +41,8 @@ export function SongViewerPage() {
   const [editingText, setEditingText] = useState('');
   const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedChord, setSelectedChord] = useState<string | null>(null);
+  const [showChordDiagram, setShowChordDiagram] = useState(false);
 
   useEffect(() => {
     loadSong();
@@ -407,17 +410,34 @@ export function SongViewerPage() {
       return <Text style={[styles.lyricsText, { fontSize }]}>{text}</Text>;
     }
 
-    // Render with styled chords
+    // Render with styled, clickable chords
     return (
       <Text style={[styles.lyricsText, { fontSize, color: theme.text }]}>
-        {parts.map((part, index) => (
-          <Text
-            key={index}
-            style={part.isChord ? [styles.chordText, { fontSize, color: theme.primary }] : undefined}
-          >
-            {part.text}
-          </Text>
-        ))}
+        {parts.map((part, index) => {
+          if (part.isChord) {
+            return (
+              <TouchableOpacity
+                key={index}
+                onPress={() => {
+                  setSelectedChord(part.text.trim());
+                  setShowChordDiagram(true);
+                }}
+                activeOpacity={0.7}
+              >
+                <Text
+                  style={[styles.chordText, { fontSize, color: theme.primary }]}
+                >
+                  {part.text}
+                </Text>
+              </TouchableOpacity>
+            );
+          }
+          return (
+            <Text key={index}>
+              {part.text}
+            </Text>
+          );
+        })}
       </Text>
     );
   };
@@ -729,15 +749,25 @@ export function SongViewerPage() {
           ) : undefined
         }
       >
-        {renderTextWithChords(getTransposedText())}
-      </ScrollView>
+            {renderTextWithChords(getTransposedText())}
+          </ScrollView>
 
-        </>
-      )}
-      </View>
-    </View>
-  );
-}
+            </>
+          )}
+          
+          {/* Chord Diagram Modal */}
+          <ChordDiagram
+            chordName={selectedChord || ''}
+            visible={showChordDiagram}
+            onClose={() => {
+              setShowChordDiagram(false);
+              setSelectedChord(null);
+            }}
+          />
+          </View>
+        </View>
+      );
+    }
 
 const styles = StyleSheet.create({
   container: {
