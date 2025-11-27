@@ -118,10 +118,12 @@ export function SongViewerPage() {
     setIsEditing(false);
       // Reset to original values
       if (song) {
-        setEditingTitle(song.title);
-        setEditingArtists(Array.isArray(song.artist) ? song.artist : (song.artist ? [song.artist] : []));
-        setEditingKey(song.key || '');
-        setEditingTags(song.tags || []);
+        if (song) {
+          setEditingTitle(song.title);
+          setEditingArtists(Array.isArray(song.artist) ? song.artist : (song.artist ? [song.artist] : []));
+          setEditingKey(song.key || '');
+          setEditingTags(song.tags || []);
+        }
       }
       setArtistInput('');
       setTagInput('');
@@ -174,6 +176,7 @@ export function SongViewerPage() {
         tags: editingTags,
       });
 
+      if (!song) return;
       const updated = await updateSong(song.id, {
         title: editingTitle.trim(),
         artist: editingArtists || [],
@@ -217,6 +220,7 @@ export function SongViewerPage() {
       return;
     }
 
+    if (!song) return;
     const songId = song.id;
     const songTitle = song.title;
 
@@ -335,7 +339,7 @@ export function SongViewerPage() {
   const getCurrentKey = () => {
     if (!song) return '';
     // Simple key transposition - in a real app, you'd parse the key and transpose it
-    return song.key || '';
+    return song?.key || '';
   };
 
   const getTransposedText = () => {
@@ -343,12 +347,14 @@ export function SongViewerPage() {
       console.warn('SongViewerPage: getTransposedText called but song is null');
       return '';
     }
-    if (!song.extractedText) {
-      console.warn('SongViewerPage: getTransposedText called but song.extractedText is empty/null', {
-        songId: song.id,
-        extractedText: song.extractedText,
-        extractedTextType: typeof song.extractedText,
-      });
+    if (!song || !song.extractedText) {
+      if (song) {
+        console.warn('SongViewerPage: getTransposedText called but song.extractedText is empty/null', {
+          songId: song.id,
+          extractedText: song.extractedText,
+          extractedTextType: typeof song.extractedText,
+        });
+      }
       return '';
     }
     if (transposeSteps === 0) return song.extractedText;
@@ -631,25 +637,27 @@ export function SongViewerPage() {
           ) : null}
 
           {/* Title and Artist */}
-          <View style={styles.header}>
-            <Text style={[styles.songTitle, { color: theme.text }]}>{song.title}</Text>
-            {song.artist && Array.isArray(song.artist) && song.artist.length > 0 ? (
-              <Text style={[styles.songArtist, { color: theme.textSecondary }]}>{song.artist.join(', ')}</Text>
-            ) : song.artist && typeof song.artist === 'string' ? (
-              <Text style={[styles.songArtist, { color: theme.textSecondary }]}>{song.artist}</Text>
-            ) : (
-              <Text style={[styles.songArtist, { color: theme.textSecondary }]}>Unknown Artist</Text>
-            )}
-            {song.tags && song.tags.length > 0 ? (
-              <View style={styles.tagsContainer}>
-                {song.tags.map((tag, index) => (
-                  <View key={index} style={[styles.tagChip, { backgroundColor: '#f3f4f6', borderWidth: 1, borderColor: '#d1d5db' }]}>
-                    <Text style={[styles.tagText, { color: '#374151' }]}>{tag}</Text>
-                  </View>
-                ))}
-              </View>
-            ) : null}
-          </View>
+          {song && (
+            <View style={styles.header}>
+              <Text style={[styles.songTitle, { color: theme.text }]}>{song.title}</Text>
+              {song.artist && Array.isArray(song.artist) && song.artist.length > 0 ? (
+                <Text style={[styles.songArtist, { color: theme.textSecondary }]}>{song.artist.join(', ')}</Text>
+              ) : song.artist && typeof song.artist === 'string' ? (
+                <Text style={[styles.songArtist, { color: theme.textSecondary }]}>{song.artist}</Text>
+              ) : (
+                <Text style={[styles.songArtist, { color: theme.textSecondary }]}>Unknown Artist</Text>
+              )}
+              {song.tags && song.tags.length > 0 ? (
+                <View style={styles.tagsContainer}>
+                  {song.tags.map((tag, index) => (
+                    <View key={index} style={[styles.tagChip, { backgroundColor: '#f3f4f6', borderWidth: 1, borderColor: '#d1d5db' }]}>
+                      <Text style={[styles.tagText, { color: '#374151' }]}>{tag}</Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+            </View>
+          )}
 
       {/* Action Bar */}
       <View style={styles.actionBar}>

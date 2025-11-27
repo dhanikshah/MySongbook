@@ -19,11 +19,13 @@ export function useSearch(songs: Song[], filters: SearchFilters) {
     // Text search (title, artist, text)
     if (filters.query) {
       const query = filters.query.toLowerCase();
-      result = result.filter(song => 
-        song.title.toLowerCase().includes(query) ||
-        song.artist.toLowerCase().includes(query) ||
-        song.extractedText.toLowerCase().includes(query)
-      );
+      result = result.filter(song => {
+        const artists = Array.isArray(song.artist) ? song.artist : (song.artist ? [song.artist] : []);
+        const artistText = artists.join(' ').toLowerCase();
+        return song.title.toLowerCase().includes(query) ||
+          artistText.includes(query) ||
+          (song.extractedText || '').toLowerCase().includes(query);
+      });
     }
 
     // Filter by type

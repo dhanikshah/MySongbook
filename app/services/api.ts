@@ -99,7 +99,8 @@ const getApiBaseUrl = () => {
     }
   } catch (e) {
     // Platform not available (shouldn't happen, but handle gracefully)
-    console.warn('Could not detect platform, using localhost fallback:', e?.message || e);
+    const errorMessage = e instanceof Error ? e.message : String(e);
+    console.warn('Could not detect platform, using localhost fallback:', errorMessage);
   }
 
   // Fallback

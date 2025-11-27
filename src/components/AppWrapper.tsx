@@ -39,8 +39,7 @@ const styles = StyleSheet.create({
   app: {
     flex: 1,
     width: '100%',
-    height: Platform.OS === 'web' ? '100vh' : '100%',
-    minHeight: Platform.OS === 'web' ? '100vh' : '100%',
+    ...(Platform.OS === 'web' ? { height: '100vh' as any, minHeight: '100vh' as any } : { height: '100%', minHeight: '100%' }),
     display: 'flex',
     flexDirection: 'row',
   },

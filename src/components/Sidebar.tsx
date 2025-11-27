@@ -50,7 +50,7 @@ export function Sidebar({ activeRoute }: SidebarProps) {
               <Text style={[
                 styles.navLabel,
                 { color: theme.text },
-                ...(active ? [styles.navLabelActive, { color: theme.primary, fontWeight: 'bold' }] : [])
+                ...(active ? [styles.navLabelActive, { color: theme.primary, fontWeight: 'bold' as const }] : [])
               ]}>
                 {item.label}
               </Text>

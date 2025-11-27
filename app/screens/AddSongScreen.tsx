@@ -168,9 +168,10 @@ export function AddSongScreen() {
         extractedTextLength: extractedText.trim().length,
       });
       
-      const newSong =       await createSong({
+      const artistArray = artist.trim() ? artist.split(',').map(a => a.trim()).filter(a => a.length > 0) : [];
+      const newSong = await createSong({
         title: title.trim(),
-        artist: artist.trim() || 'Unknown Artist',
+        artist: artistArray.length > 0 ? artistArray : ['Unknown Artist'],
         type,
         key: key || 'C',
         tags: tags || [],

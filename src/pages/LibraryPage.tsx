@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, Platform, useWindowDimensions, SafeAreaView, StatusBar, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { SearchBar } from '../components/SearchBar';
 import { useSongs } from '../../app/hooks/useSongs';
 import { useTheme } from '../../app/context/ThemeContext';
+import { Song } from '../../app/types/Song';
 
 export function LibraryPage() {
   const navigation = useNavigation<any>();
@@ -13,17 +13,19 @@ export function LibraryPage() {
   const { width, height } = useWindowDimensions();
   const isMobile = Platform.OS !== 'web' && width < 768;
   const insets = useSafeAreaInsets();
-  const [searchQuery, setSearchQuery] = useState('');
+  const scrollViewRef = useRef<ScrollView>(null);
+  const letterRefs = useRef<{ [letter: string]: number }>({});
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [activeLetter, setActiveLetter] = useState<string | null>(null);
 
   // Calculate ScrollView height for mobile to extend to bottom menu bar
-  // Account for: top inset, container padding top (12px), header (~50px), search bar (~50px), container padding bottom (80px), bottom nav (60px), bottom inset
+  // Account for: top inset, container padding top (12px), header (~50px), letter jump bar (~30px), container padding bottom (80px), bottom nav (60px), bottom inset
   // Bottom nav is absolutely positioned, so we need to account for it in the ScrollView height
   const scrollViewHeight = isMobile 
-    ? Math.max(200, height - insets.top - insets.bottom - 12 - 50 - 50 - 60) // Maximized: extends to bottom menu bar (account for all UI elements, min 200px)
+    ? Math.max(200, height - insets.top - insets.bottom - 12 - 50 - 30 - 60) // Maximized: extends to bottom menu bar (account for all UI elements, min 200px)
     : undefined;
 
   // Refresh songs when page comes into focus (e.g., after deleting/editing a song)
@@ -49,24 +51,9 @@ export function LibraryPage() {
     }
   }, [fetchSongs]);
 
-  const filteredSongs = songs
-    .filter(song => {
-      if (!searchQuery.trim()) return true; // Show all songs if search is empty
-      
-      const query = searchQuery.toLowerCase();
-      // Handle both array and string formats for backward compatibility
-      const artists = Array.isArray(song.artist) 
-        ? song.artist 
-        : (song.artist && typeof song.artist === 'string' ? [song.artist] : []);
-      
-      return (
-        song.title.toLowerCase().includes(query) ||
-        artists.some(artist => artist.toLowerCase().includes(query)) ||
-        (song.key && song.key.toLowerCase().includes(query)) ||
-        (song.tags && song.tags.some(tag => tag.toLowerCase().includes(query)))
-      );
-    })
-    .sort((a, b) => {
+  // Group songs by first letter
+  const songsByLetter = useMemo(() => {
+    const sortedSongs = [...songs].sort((a, b) => {
       // Sort alphabetically by title (case-insensitive)
       const titleA = a.title.toLowerCase();
       const titleB = b.title.toLowerCase();
@@ -74,6 +61,65 @@ export function LibraryPage() {
       if (titleA > titleB) return 1;
       return 0;
     });
+
+    const grouped: { [letter: string]: Song[] } = {};
+    sortedSongs.forEach(song => {
+      const firstChar = song.title.charAt(0).toUpperCase();
+      const letter = /[A-Z]/.test(firstChar) ? firstChar : '#';
+      if (!grouped[letter]) {
+        grouped[letter] = [];
+      }
+      grouped[letter].push(song);
+    });
+    return grouped;
+  }, [songs]);
+
+  // Get all letters that have songs, sorted
+  const letters = useMemo(() => {
+    const allLetters = Object.keys(songsByLetter).sort();
+    // Put # at the end if it exists
+    const hashIndex = allLetters.indexOf('#');
+    if (hashIndex > -1) {
+      allLetters.splice(hashIndex, 1);
+      allLetters.push('#');
+    }
+    return allLetters;
+  }, [songsByLetter]);
+
+  // Get total count of songs
+  const totalSongs = songs.length;
+
+  // Scroll to a specific letter
+  const scrollToLetter = (letter: string) => {
+    const yPosition = letterRefs.current[letter];
+    if (yPosition !== undefined && scrollViewRef.current) {
+      setActiveLetter(letter);
+      scrollViewRef.current.scrollTo({ y: yPosition, animated: true });
+      // Reset active letter after animation
+      setTimeout(() => setActiveLetter(null), 1000);
+    }
+  };
+
+  // Handle scroll to update active letter
+  const handleScroll = (event: any) => {
+    const scrollY = event.nativeEvent.contentOffset.y;
+    let currentLetter: string | null = null;
+    
+    // Find which letter section is currently visible
+    // Check letters in reverse order to get the topmost visible one
+    for (let i = letters.length - 1; i >= 0; i--) {
+      const letter = letters[i];
+      const letterY = letterRefs.current[letter];
+      if (letterY !== undefined && scrollY >= letterY - 100) {
+        currentLetter = letter;
+        break;
+      }
+    }
+    
+    if (currentLetter !== activeLetter) {
+      setActiveLetter(currentLetter);
+    }
+  };
 
   const toggleSelection = (songId: string) => {
     setSelectedIds(prev => {
@@ -88,10 +134,11 @@ export function LibraryPage() {
   };
 
   const toggleSelectAll = () => {
-    if (selectedIds.size === filteredSongs.length) {
+    const allSongIds = new Set(songs.map(song => song.id));
+    if (selectedIds.size === allSongIds.size) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(filteredSongs.map(song => song.id)));
+      setSelectedIds(allSongIds);
     }
   };
 
@@ -162,7 +209,6 @@ export function LibraryPage() {
 
   console.log('LibraryPage: Rendering, songs:', songs.length, 'loading:', loading);
   console.log('LibraryPage: Theme:', theme);
-  console.log('LibraryPage: filteredSongs:', filteredSongs.length);
   
       return (
         <View style={{ flex: 1, backgroundColor: theme.background }}>
@@ -186,7 +232,7 @@ export function LibraryPage() {
               onPress={toggleSelectAll}
             >
               <Text style={[styles.selectAllButtonText, { color: theme.primary }]}>
-                {selectedIds.size === filteredSongs.length ? 'Deselect All' : 'Select All'}
+                {selectedIds.size === totalSongs ? 'Deselect All' : 'Select All'}
               </Text>
             </TouchableOpacity>
             {selectedIds.size > 0 ? (
@@ -210,18 +256,46 @@ export function LibraryPage() {
           </TouchableOpacity>
         )}
       </View>
-      <SearchBar value={searchQuery} onChangeText={setSearchQuery} />
+
+      {/* Letter Jump Bar */}
+      {!loading && letters.length > 0 && (
+        <View style={styles.letterJumpBar}>
+          {letters.map((letter) => {
+            const isActive = activeLetter === letter;
+            return (
+              <TouchableOpacity
+                key={letter}
+                onPress={() => scrollToLetter(letter)}
+                style={[
+                  styles.letterButton,
+                  isActive && { backgroundColor: theme.primary }
+                ]}
+              >
+                <Text style={[
+                  styles.letterButtonText,
+                  { color: isActive ? (theme.primaryText || '#ffffff') : theme.primary }
+                ]}>
+                  {letter}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      )}
       
       {loading ? (
         <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading...</Text>
-      ) : filteredSongs.length === 0 ? (
-        <Text style={[styles.emptyText, { color: theme.textSecondary }]}>No songs found</Text>
+      ) : totalSongs === 0 ? (
+        <Text style={[styles.emptyText, { color: theme.textSecondary }]}>No songs in library</Text>
       ) : (
         <ScrollView 
+          ref={scrollViewRef}
           style={[
             styles.scrollView,
             isMobile && scrollViewHeight ? { height: scrollViewHeight } : undefined
           ]}
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
           refreshControl={
             Platform.OS !== 'web' ? (
               <RefreshControl
@@ -233,59 +307,78 @@ export function LibraryPage() {
             ) : undefined
           }
         >
-          {filteredSongs.map((song) => (
-            <TouchableOpacity
-              key={song.id}
-              onPress={() => handleCardPress(song.id)}
-              onLongPress={() => handleLongPress(song.id)}
-              style={[
-                styles.card,
-                { backgroundColor: theme.card, borderColor: theme.border },
-                ...(selectionMode && selectedIds.has(song.id) ? [styles.cardSelected, { backgroundColor: theme.selected, borderColor: theme.selectedBorder }] : []),
-              ]}
-            >
-              {selectionMode ? (
-                <View style={[styles.checkbox, { borderColor: theme.primary }]}>
-                  {selectedIds.has(song.id) ? (
-                    <View style={[styles.checkboxChecked, { backgroundColor: theme.primary }]}>
-                      <Text style={[styles.checkmark, { color: theme.primaryText }]}>✓</Text>
-                    </View>
-                  ) : null}
+          {letters.map((letter) => {
+            const letterSongs = songsByLetter[letter] || [];
+            if (letterSongs.length === 0) return null;
+
+            return (
+              <View
+                key={letter}
+                onLayout={(event) => {
+                  const { y } = event.nativeEvent.layout;
+                  letterRefs.current[letter] = y;
+                }}
+              >
+                {/* Letter Header */}
+                <View style={[
+                  styles.letterHeader, 
+                  { 
+                    backgroundColor: activeLetter === letter ? theme.primary : theme.surface,
+                    borderBottomColor: activeLetter === letter ? theme.primary : theme.border,
+                    borderLeftColor: theme.primary,
+                    borderLeftWidth: 4,
+                  }
+                ]}>
+                  <Text style={[
+                    styles.letterHeaderText, 
+                    { 
+                      color: activeLetter === letter 
+                        ? (theme.primaryText || '#ffffff') 
+                        : theme.primary,
+                      fontWeight: 'bold',
+                    }
+                  ]}>
+                    {letter} ({letterSongs.length})
+                  </Text>
                 </View>
-              ) : null}
-              <View style={styles.cardContent}>
-                <Text style={[styles.cardTitle, { color: theme.text }]}>{song.title}</Text>
-                {(() => {
-                  // Handle both array and string formats for backward compatibility
-                  const artists = Array.isArray(song.artist) 
-                    ? song.artist 
-                    : (song.artist && typeof song.artist === 'string' ? [song.artist] : []);
-                  
-                if (artists.length > 0) {
-                  return (
-                    <Text style={[styles.cardArtist, { color: theme.textSecondary }]}>
-                      {artists.join(', ')}
-                    </Text>
-                  );
-                } else {
-                  return <Text style={[styles.cardArtist, { color: theme.textSecondary }]}>Unknown Artist</Text>;
-                }
-              })()}
-              <View style={styles.cardTags}>
-                {song.key && song.key.trim() ? (
-                  <View style={[styles.tag, { backgroundColor: '#eef2ff', borderWidth: 1, borderColor: theme.primary }]}>
-                    <Text style={[styles.tagText, { color: theme.primary, fontWeight: '600' }]}>Key: {song.key}</Text>
-                  </View>
-                ) : null}
-                {song.tags && song.tags.length > 0 ? song.tags.map((tag, index) => (
-                  <View key={index} style={[styles.tag, { backgroundColor: '#f3f4f6', borderWidth: 1, borderColor: '#d1d5db' }]}>
-                    <Text style={[styles.tagText, { color: '#374151' }]}>{tag}</Text>
-                  </View>
-                )) : null}
+
+                {/* Songs in this letter - Grid View */}
+                <View style={styles.gridContainer}>
+                  {letterSongs.map((song) => (
+                    <TouchableOpacity
+                      key={song.id}
+                      onPress={() => handleCardPress(song.id)}
+                      onLongPress={() => handleLongPress(song.id)}
+                      style={[
+                        styles.gridCard,
+                        { backgroundColor: theme.card, borderColor: theme.border },
+                        ...(selectionMode && selectedIds.has(song.id) ? [styles.cardSelected, { backgroundColor: theme.selected, borderColor: theme.selectedBorder }] : []),
+                      ]}
+                    >
+                      {selectionMode ? (
+                        <View style={[styles.checkbox, { borderColor: theme.primary, position: 'absolute', top: 8, right: 8, zIndex: 1 }]}>
+                          {selectedIds.has(song.id) ? (
+                            <View style={[styles.checkboxChecked, { backgroundColor: theme.primary }]}>
+                              <Text style={[styles.checkmark, { color: theme.primaryText }]}>✓</Text>
+                            </View>
+                          ) : null}
+                        </View>
+                      ) : null}
+                      <View style={styles.gridCardContent}>
+                        <Text 
+                          style={[styles.gridCardTitle, { color: theme.text }]}
+                          numberOfLines={3}
+                          ellipsizeMode="tail"
+                        >
+                          {song.title}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </View>
-              </View>
-            </TouchableOpacity>
-          ))}
+            );
+          })}
         </ScrollView>
       )}
       
@@ -306,7 +399,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     width: '100%',
-    minHeight: Platform.OS === 'web' ? '100vh' : '100%',
+    ...(Platform.OS === 'web' ? { minHeight: '100vh' as any } : { minHeight: '100%' }),
     padding: Platform.OS === 'web' ? 24 : 12,
     paddingBottom: Platform.OS === 'web' ? 24 : 0, // No bottom padding on mobile - bottom nav overlays content
   },
@@ -330,6 +423,34 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     flexDirection: 'row',
     alignItems: 'flex-start',
+  },
+  gridContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 16,
+  },
+  gridCard: {
+    borderRadius: 8,
+    borderWidth: 1,
+    padding: 12,
+    position: 'relative',
+    ...(Platform.OS === 'web' ? {
+      width: '31%',
+      minWidth: 200,
+      maxWidth: '31%',
+    } : {
+      width: '48%',
+      minWidth: 150,
+      maxWidth: '48%',
+    }),
+  },
+  gridCardContent: {
+    flex: 1,
+  },
+  gridCardTitle: {
+    fontSize: Platform.OS === 'web' ? 15 : 16,
+    fontWeight: '600',
   },
   cardContent: {
     flex: 1,
@@ -476,6 +597,38 @@ const styles = StyleSheet.create({
   addButtonText: {
     fontSize: 15,
     fontWeight: '600',
+  },
+  letterJumpBar: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    marginBottom: 12,
+    gap: 4,
+  },
+  letterButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    minWidth: 28,
+    alignItems: 'center',
+  },
+  letterButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  letterHeader: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 2,
+    marginTop: 8,
+    marginBottom: 8,
+    borderRadius: 4,
+  },
+  letterHeaderText: {
+    fontSize: 18,
+    fontWeight: 'bold',
   },
 });
 

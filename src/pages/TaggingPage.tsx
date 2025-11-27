@@ -138,9 +138,10 @@ export function TaggingPage() {
         extractedTextLength: songText.trim().length,
       });
 
+      const artistArray = artist.trim() ? artist.split(',').map(a => a.trim()).filter(a => a.length > 0) : [];
       const newSong = await createSong({
         title: title.trim(),
-        artist: artist.trim() || '', // Provide empty string as default
+        artist: artistArray,
         type: 'chords',
         key: selectedKey || 'C', // Provide default key
         tags: tags || [], // Provide empty array as default
